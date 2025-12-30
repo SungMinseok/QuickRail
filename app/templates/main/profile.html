@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}계정 정보 - QuickRail{% endblock %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 0 auto;">
+    <h2 style="margin-bottom: 2rem;">계정 정보</h2>
+    
+    <!-- 기본 정보 -->
+    <div class="card" style="margin-bottom: 2rem;">
+        <h4 style="margin-bottom: 1rem;">기본 정보</h4>
+        <div style="margin-bottom: 1rem;">
+            <strong>이메일:</strong>
+            <p style="margin-top: 0.25rem; color: #666;">{{ current_user.email }}</p>
+        </div>
+        <div style="margin-bottom: 1rem;">
+            <strong>역할:</strong>
+            <p style="margin-top: 0.25rem; color: #666;">
+                {% if current_user.is_admin() %}
+                <span style="background: #e74c3c; color: white; padding: 0.25rem 0.75rem; border-radius: 3px;">관리자</span>
+                {% elif current_user.role == 'author' %}
+                <span style="background: #3498db; color: white; padding: 0.25rem 0.75rem; border-radius: 3px;">작성자</span>
+                {% else %}
+                <span style="background: #27ae60; color: white; padding: 0.25rem 0.75rem; border-radius: 3px;">실행자</span>
+                {% endif %}
+            </p>
+        </div>
+        <div>
+            <strong>가입일:</strong>
+            <p style="margin-top: 0.25rem; color: #666;">{{ current_user.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+        </div>
+    </div>
+    
+    <!-- 이름 변경 -->
+    <div class="card" style="margin-bottom: 2rem;">
+        <h4 style="margin-bottom: 1rem;">이름 변경</h4>
+        <form onsubmit="changeName(event)">
+            <div class="form-group">
+                <label class="form-label">새 이름</label>
+                <input type="text" id="newName" class="form-control" value="{{ current_user.name }}" required>
+            </div>
+            <button type="submit" class="btn btn-primary">이름 변경</button>
+        </form>
+    </div>
+    
+    <!-- 비밀번호 변경 -->
+    <div class="card" style="margin-bottom: 2rem;">
+        <h4 style="margin-bottom: 1rem;">비밀번호 변경</h4>
+        <form onsubmit="changePassword(event)">
+            <div class="form-group">
+                <label class="form-label">현재 비밀번호</label>
+                <input type="password" id="currentPassword" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">새 비밀번호</label>
+                <input type="password" id="newPassword" class="form-control" required minlength="6">
+                <small style="color: #666;">최소 6자 이상</small>
+            </div>
+            <div class="form-group">
+                <label class="form-label">새 비밀번호 확인</label>
+                <input type="password" id="confirmPassword" class="form-control" required minlength="6">
+            </div>
+            <button type="submit" class="btn btn-primary">비밀번호 변경</button>
+        </form>
+    </div>
+    
+    <!-- 회원 탈퇴 -->
+    <div class="card" style="border: 2px solid #e74c3c;">
+        <h4 style="margin-bottom: 1rem; color: #e74c3c;">회원 탈퇴</h4>
+        <p style="color: #666; margin-bottom: 1rem;">
+            회원 탈퇴 시 모든 데이터가 삭제되며 복구할 수 없습니다.
+        </p>
+        <button class="btn btn-danger" onclick="deleteAccount()">회원 탈퇴</button>
+    </div>
+    
+    <div style="margin-top: 2rem;">
+        <a href="{{ url_for('main.projects') }}" class="btn btn-secondary">돌아가기</a>
+    </div>
+</div>
+
+<script>
+async function changeName(event) {
+    event.preventDefault();
+    
+    const newName = document.getElementById('newName').value;
+    
+    if (!confirm(`이름을 "${newName}"으로 변경하시겠습니까?`)) return;
+    
+    try {
+        const res = await fetch('/api/profile/name', {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ name: newName })
+        });
+        
+        if (res.ok) {
+            alert('이름이 변경되었습니다.');
+            location.reload();
+        } else {
+            const data = await res.json();
+            alert(data.error || '이름 변경 실패');
+        }
+    } catch (err) {
+        alert('오류 발생: ' + err);
+    }
+}
+
+async function changePassword(event) {
+    event.preventDefault();
+    
+    const currentPassword = document.getElementById('currentPassword').value;
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    
+    if (newPassword !== confirmPassword) {
+        alert('새 비밀번호가 일치하지 않습니다.');
+        return;
+    }
+    
+    if (newPassword.length < 6) {
+        alert('비밀번호는 최소 6자 이상이어야 합니다.');
+        return;
+    }
+    
+    try {
+        const res = await fetch('/api/profile/password', {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                current_password: currentPassword,
+                new_password: newPassword
+            })
+        });
+        
+        if (res.ok) {
+            alert('비밀번호가 변경되었습니다.');
+            document.getElementById('currentPassword').value = '';
+            document.getElementById('newPassword').value = '';
+            document.getElementById('confirmPassword').value = '';
+        } else {
+            const data = await res.json();
+            alert(data.error || '비밀번호 변경 실패');
+        }
+    } catch (err) {
+        alert('오류 발생: ' + err);
+    }
+}
+
+async function deleteAccount() {
+    const confirmEmail = prompt('정말로 회원 탈퇴하시겠습니까?\n탈퇴하려면 이메일을 입력하세요: {{ current_user.email }}');
+    
+    if (confirmEmail !== '{{ current_user.email }}') {
+        alert('이메일이 일치하지 않습니다.');
+        return;
+    }
+    
+    if (!confirm('이 작업은 되돌릴 수 없습니다. 정말로 탈퇴하시겠습니까?')) return;
+    
+    try {
+        const res = await fetch('/api/profile', {
+            method: 'DELETE'
+        });
+        
+        if (res.ok) {
+            alert('회원 탈퇴가 완료되었습니다.');
+            window.location.href = '/auth/login';
+        } else {
+            const data = await res.json();
+            alert(data.error || '회원 탈퇴 실패');
+        }
+    } catch (err) {
+        alert('오류 발생: ' + err);
+    }
+}
+</script>
+{% endblock %}
+

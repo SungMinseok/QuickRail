@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}로그인 - QuickRail{% endblock %}
+
+{% block content %}
+<div style="max-width: 400px; margin: 4rem auto;">
+    <div class="card">
+        <h1 style="margin-bottom: 2rem; text-align: center;">로그인</h1>
+        
+        <form method="POST" action="{{ url_for('auth.login') }}">
+            <div class="form-group">
+                <label for="email" class="form-label">이메일</label>
+                <input type="email" id="email" name="email" class="form-control" required autofocus>
+            </div>
+            
+            <div class="form-group">
+                <label for="password" class="form-label">비밀번호</label>
+                <input type="password" id="password" name="password" class="form-control" required>
+            </div>
+            
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 0.5rem;">
+                    <input type="checkbox" name="remember">
+                    <span>로그인 상태 유지</span>
+                </label>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%;">로그인</button>
+        </form>
+        
+        <p style="text-align: center; margin-top: 1.5rem; color: #666;">
+            계정이 없으신가요? <a href="{{ url_for('auth.register') }}" style="color: #3498db;">회원가입</a>
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+

@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}회원 관리 - QuickRail{% endblock %}
+
+{% block content %}
+<div style="max-width: 1200px; margin: 0 auto;">
+    <h2 style="margin-bottom: 2rem;">회원 관리</h2>
+    
+    <div class="card">
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: #f5f5f5; text-align: left;">
+                        <th style="padding: 1rem; border-bottom: 2px solid #ddd;">ID</th>
+                        <th style="padding: 1rem; border-bottom: 2px solid #ddd;">이메일</th>
+                        <th style="padding: 1rem; border-bottom: 2px solid #ddd;">이름</th>
+                        <th style="padding: 1rem; border-bottom: 2px solid #ddd;">역할</th>
+                        <th style="padding: 1rem; border-bottom: 2px solid #ddd;">상태</th>
+                        <th style="padding: 1rem; border-bottom: 2px solid #ddd;">가입일</th>
+                        <th style="padding: 1rem; border-bottom: 2px solid #ddd; text-align: center;">액션</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 1rem;">{{ user.id }}</td>
+                        <td style="padding: 1rem;">
+                            {{ user.email }}
+                            {% if user.email == 'admin@pubg.com' %}
+                            <span style="background: #e74c3c; color: white; padding: 0.2rem 0.5rem; border-radius: 3px; font-size: 0.75rem; margin-left: 0.5rem;">SUPER ADMIN</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 1rem;">{{ user.name }}</td>
+                        <td style="padding: 1rem;">
+                            <select class="form-control" style="width: auto;" onchange="changeRole({{ user.id }}, this.value)" {% if user.email == 'admin@pubg.com' %}disabled{% endif %}>
+                                <option value="runner" {% if user.role == 'runner' %}selected{% endif %}>Runner</option>
+                                <option value="author" {% if user.role == 'author' %}selected{% endif %}>Author</option>
+                                <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
+                            </select>
+                        </td>
+                        <td style="padding: 1rem;">
+                            {% if user.is_active %}
+                            <span style="color: #27ae60; font-weight: 500;">✓ 활성</span>
+                            {% else %}
+                            <span style="color: #e74c3c; font-weight: 500;">✗ 비활성</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 1rem;">{{ user.created_at.strftime('%Y-%m-%d') }}</td>
+                        <td style="padding: 1rem; text-align: center;">
+                            {% if user.id != current_user.id and user.email != 'admin@pubg.com' %}
+                            <div style="display: flex; gap: 0.5rem; justify-content: center;">
+                                {% if user.is_active %}
+                                <button class="btn btn-secondary" style="padding: 0.25rem 0.75rem; font-size: 0.85rem;" 
+                                        onclick="toggleActive({{ user.id }}, false)">비활성화</button>
+                                {% else %}
+                                <button class="btn btn-success" style="padding: 0.25rem 0.75rem; font-size: 0.85rem;" 
+                                        onclick="toggleActive({{ user.id }}, true)">활성화</button>
+                                {% endif %}
+                                <button class="btn btn-danger" style="padding: 0.25rem 0.75rem; font-size: 0.85rem;" 
+                                        onclick="deleteUser({{ user.id }}, '{{ user.email }}')">삭제</button>
+                            </div>
+                            {% else %}
+                            <span style="color: #999; font-size: 0.85rem;">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div style="margin-top: 2rem;">
+        <a href="{{ url_for('main.projects') }}" class="btn btn-secondary">돌아가기</a>
+    </div>
+</div>
+
+<script>
+async function changeRole(userId, newRole) {
+    if (!confirm(`역할을 ${newRole}로 변경하시겠습니까?`)) {
+        location.reload();
+        return;
+    }
+    
+    try {
+        const res = await fetch(`/api/users/${userId}`, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ role: newRole })
+        });
+        
+        if (res.ok) {
+            alert('역할이 변경되었습니다.');
+            location.reload();
+        } else {
+            alert('역할 변경 실패');
+            location.reload();
+        }
+    } catch (err) {
+        alert('오류 발생: ' + err);
+        location.reload();
+    }
+}
+
+async function toggleActive(userId, isActive) {
+    const action = isActive ? '활성화' : '비활성화';
+    if (!confirm(`이 계정을 ${action}하시겠습니까?`)) return;
+    
+    try {
+        const res = await fetch(`/api/users/${userId}`, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ is_active: isActive })
+        });
+        
+        if (res.ok) {
+            alert(`계정이 ${action}되었습니다.`);
+            location.reload();
+        } else {
+            alert(`${action} 실패`);
+        }
+    } catch (err) {
+        alert('오류 발생: ' + err);
+    }
+}
+
+async function deleteUser(userId, email) {
+    const confirmText = prompt(`정말로 이 계정을 삭제하시겠습니까?\n삭제하려면 이메일을 입력하세요: ${email}`);
+    if (confirmText !== email) {
+        alert('이메일이 일치하지 않습니다.');
+        return;
+    }
+    
+    try {
+        const res = await fetch(`/api/users/${userId}`, {
+            method: 'DELETE'
+        });
+        
+        if (res.ok) {
+            alert('계정이 삭제되었습니다.');
+            location.reload();
+        } else {
+            alert('삭제 실패');
+        }
+    } catch (err) {
+        alert('오류 발생: ' + err);
+    }
+}
+</script>
+{% endblock %}
+

@@ -1,0 +1,839 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.name }} - 런 관리{% endblock %}
+
+{% block extra_css %}
+<style>
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgba(0,0,0,0.5);
+        animation: fadeIn 0.3s;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    .modal-content {
+        background-color: #fefefe;
+        margin: 5% auto;
+        padding: 0;
+        border-radius: 8px;
+        width: 80%;
+        max-width: 900px;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    
+    .modal-header {
+        padding: 1.5rem;
+        border-bottom: 1px solid #e0e0e0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .modal-body {
+        padding: 1.5rem;
+        overflow-y: auto;
+        flex: 1;
+    }
+    
+    .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #e0e0e0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .close {
+        color: #aaa;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+        border: none;
+        background: none;
+    }
+    
+    .close:hover {
+        color: #000;
+    }
+    
+    .case-selector {
+        display: grid;
+        grid-template-columns: 300px 1fr;
+        gap: 1.5rem;
+        min-height: 400px;
+    }
+    
+    .section-list {
+        border-right: 1px solid #e0e0e0;
+        padding-right: 1rem;
+        overflow-y: auto;
+    }
+    
+    .section-list-item {
+        padding: 0.75rem;
+        margin: 0.25rem 0;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .section-list-item:hover {
+        background: #f5f5f5;
+    }
+    
+    .section-list-item.active {
+        background: #e3f2fd;
+        border-left: 3px solid #3498db;
+    }
+    
+    .section-list-item.has-selection {
+        font-weight: 500;
+        color: #3498db;
+    }
+    
+    .case-list {
+        overflow-y: auto;
+    }
+    
+    .case-checkbox-item {
+        padding: 0.75rem;
+        margin: 0.5rem 0;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        display: flex;
+        align-items: start;
+        gap: 0.75rem;
+        transition: all 0.2s;
+    }
+    
+    .case-checkbox-item:hover {
+        background: #f9f9f9;
+        border-color: #3498db;
+    }
+    
+    .case-checkbox-item.selected {
+        background: #e8f5e9;
+        border-color: #27ae60;
+    }
+    
+    .case-checkbox-item input[type="checkbox"] {
+        margin-top: 0.25rem;
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+    }
+    
+    .case-info {
+        flex: 1;
+    }
+    
+    .case-title {
+        font-weight: 500;
+        margin-bottom: 0.25rem;
+    }
+    
+    .case-meta {
+        font-size: 0.85rem;
+        color: #666;
+        display: flex;
+        gap: 0.75rem;
+    }
+    
+    .selected-count {
+        background: #3498db;
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+    
+    .select-all-section {
+        padding: 0.5rem;
+        background: #f5f5f5;
+        border-radius: 4px;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 1rem;">
+    <h2>{{ project.name }}</h2>
+    <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+        <a href="{{ url_for('main.cases', project_id=project.id) }}" class="btn btn-secondary">케이스</a>
+        <a href="{{ url_for('main.runs', project_id=project.id) }}" class="btn btn-primary">런</a>
+        <a href="{{ url_for('main.dashboard', project_id=project.id) }}" class="btn btn-secondary">리포트</a>
+    </div>
+</div>
+
+<div style="max-width: 1200px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <h3>테스트 런</h3>
+        <div style="display: flex; gap: 1rem;">
+            <button class="btn btn-secondary" onclick="showTemplates()">📋 템플릿</button>
+            <button class="btn btn-success" onclick="showCreateRun()">+ 새 런 생성</button>
+        </div>
+    </div>
+    
+    <!-- 템플릿 목록 (숨김) -->
+    <div id="templatesSection" class="card" style="display: none; margin-bottom: 2rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h4>런 템플릿</h4>
+            <button class="btn btn-secondary" onclick="hideTemplates()">닫기</button>
+        </div>
+        <div id="templatesList">
+            <!-- JavaScript로 동적 생성 -->
+        </div>
+    </div>
+    
+    <!-- 런 생성 폼 -->
+    <div id="createRunForm" class="card" style="display: none; margin-bottom: 2rem;">
+        <h4 style="margin-bottom: 1rem;">새 런 생성</h4>
+        <form onsubmit="createRun(event)">
+            <div class="form-group">
+                <label class="form-label">런 이름</label>
+                <input type="text" id="runName" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">설명 (선택)</label>
+                <textarea id="runDescription" class="form-control"></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">타입</label>
+                <select id="runType" class="form-control">
+                    <option value="smoke">Smoke</option>
+                    <option value="regression">Regression</option>
+                    <option value="hotfix">Hotfix</option>
+                    <option value="custom">Custom</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">포함할 케이스 선택</label>
+                <button type="button" class="btn btn-primary" onclick="event.preventDefault(); openCaseSelector()">
+                    케이스 선택 (<span id="selectedCaseCount">0</span>개)
+                </button>
+                <input type="hidden" id="selectedCaseIds" value="">
+                <div id="selectedCasePreview" style="margin-top: 0.5rem; color: #666; font-size: 0.9rem;"></div>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button type="submit" class="btn btn-success">생성</button>
+                <button type="button" class="btn btn-primary" onclick="saveAsTemplate()">템플릿으로 저장</button>
+                <button type="button" class="btn btn-secondary" onclick="hideCreateRun()">취소</button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Open Runs -->
+    <div class="card" style="margin-bottom: 2rem;">
+        <h4 style="margin-bottom: 1rem; color: #27ae60;">진행 중인 런 ({{ open_runs|length }})</h4>
+        {% for run in open_runs %}
+        {% set stats = run.get_stats() %}
+        <div style="padding: 1rem; border-bottom: 1px solid #eee; display: flex; gap: 1rem; align-items: start;">
+            <div style="flex: 1;">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div style="flex: 1;">
+                        <h5 style="margin-bottom: 0.5rem;">
+                            <a href="{{ url_for('main.run_execute', run_id=run.id) }}" style="color: #2c3e50; text-decoration: none;">
+                                {{ run.name }}
+                            </a>
+                        </h5>
+                        <div style="font-size: 0.9rem; color: #666;">
+                            <span>{{ run.run_type or 'custom' }}</span> | 
+                            <span>생성자: {{ run.creator.name }}</span> | 
+                            <span>{{ run.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                        </div>
+                        {% if run.description %}
+                        <p style="margin-top: 0.5rem; color: #666;">{{ run.description }}</p>
+                        {% endif %}
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 1.2rem; font-weight: bold; color: #3498db;">
+                            {{ stats.progress }}%
+                        </div>
+                        <div style="font-size: 0.9rem; color: #666;">
+                            {{ stats.executed }} / {{ stats.total }}
+                        </div>
+                        <div style="margin-top: 0.5rem;">
+                            <span style="color: #27ae60;">✓ {{ stats.pass }}</span>
+                            <span style="color: #e74c3c; margin-left: 0.5rem;">✗ {{ stats.fail }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% if current_user.role in ['admin', 'author'] or run.created_by == current_user.id %}
+            <button class="btn btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.85rem;" 
+                    onclick="deleteRun({{ run.id }})" title="삭제">🗑️</button>
+            {% endif %}
+        </div>
+        {% endfor %}
+        
+        {% if not open_runs %}
+        <div style="text-align: center; padding: 2rem; color: #999;">
+            진행 중인 런이 없습니다.
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Closed Runs -->
+    <div class="card">
+        <h4 style="margin-bottom: 1rem; color: #95a5a6;">완료된 런 (최근 20개)</h4>
+        {% for run in closed_runs %}
+        {% set stats = run.get_stats() %}
+        <div style="padding: 1rem; border-bottom: 1px solid #eee; display: flex; gap: 1rem; align-items: start;">
+            <div style="flex: 1;">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div style="flex: 1;">
+                        <h5 style="margin-bottom: 0.5rem; color: #666;">{{ run.name }}</h5>
+                        <div style="font-size: 0.9rem; color: #999;">
+                            <span>{{ run.run_type or 'custom' }}</span> | 
+                            <span>{{ run.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 1.1rem; font-weight: bold; color: {% if stats.pass_rate >= 90 %}#27ae60{% elif stats.pass_rate >= 70 %}#f39c12{% else %}#e74c3c{% endif %}">
+                            Pass: {{ stats.pass_rate }}%
+                        </div>
+                        <div style="font-size: 0.85rem; color: #999;">
+                            <span style="color: #27ae60;">✓ {{ stats.pass }}</span>
+                            <span style="color: #e74c3c; margin-left: 0.5rem;">✗ {{ stats.fail }}</span>
+                            <span style="color: #95a5a6; margin-left: 0.5rem;">⊘ {{ stats.blocked }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% if current_user.role in ['admin', 'author'] or run.created_by == current_user.id %}
+            <button class="btn btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.85rem;" 
+                    onclick="deleteRun({{ run.id }})" title="삭제">🗑️</button>
+            {% endif %}
+        </div>
+        {% endfor %}
+        
+        {% if not closed_runs %}
+        <div style="text-align: center; padding: 2rem; color: #999;">
+            완료된 런이 없습니다.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 케이스 선택 모달 -->
+<div id="caseSelectorModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>케이스 선택</h3>
+            <button class="close" onclick="closeCaseSelector()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="case-selector">
+                <div class="section-list">
+                    <h4 style="margin-bottom: 1rem; font-size: 1rem;">섹션</h4>
+                    <div id="modalSectionList">
+                        <div class="section-list-item active" data-section-id="all" onclick="selectModalSection('all')">
+                            <span>📋</span>
+                            <span>전체 케이스</span>
+                            <span class="selected-count" id="count-all" style="margin-left: auto;">0</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="case-list">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h4 style="margin: 0; font-size: 1rem;">케이스 목록</h4>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; cursor: pointer;">
+                            <input type="checkbox" id="selectAllCases" onchange="toggleSelectAll()">
+                            <span>전체 선택</span>
+                        </label>
+                    </div>
+                    <div id="caseCheckboxList">
+                        <!-- JavaScript로 동적 생성 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <div style="color: #666; font-size: 0.9rem;">
+                <span id="modalSelectionCount">0</span>개 케이스 선택됨
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <button class="btn btn-success" onclick="confirmCaseSelection()">확인</button>
+                <button class="btn btn-secondary" onclick="closeCaseSelector()">취소</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const projectId = {{ project.id }};
+
+// 케이스 선택 모달 전역 변수
+let allSections = [];
+let allCases = [];
+let selectedCaseIds = new Set();
+let currentModalSection = 'all';
+
+function showCreateRun() {
+    document.getElementById('createRunForm').style.display = 'block';
+    // 자동 이름 생성
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('runName').value = `${today} Regression`;
+}
+
+function hideCreateRun() {
+    document.getElementById('createRunForm').style.display = 'none';
+}
+
+// 템플릿 관련 함수들
+async function showTemplates() {
+    document.getElementById('templatesSection').style.display = 'block';
+    await loadTemplates();
+}
+
+function hideTemplates() {
+    document.getElementById('templatesSection').style.display = 'none';
+}
+
+async function loadTemplates() {
+    try {
+        const res = await fetch(`/api/projects/${projectId}/run-templates`);
+        const templates = await res.json();
+        
+        const container = document.getElementById('templatesList');
+        
+        if (templates.length === 0) {
+            container.innerHTML = '<p style="text-align: center; color: #999; padding: 2rem;">저장된 템플릿이 없습니다.</p>';
+            return;
+        }
+        
+        container.innerHTML = templates.map(t => `
+            <div class="card" style="margin-bottom: 1rem; padding: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: start;">
+                    <div style="flex: 1;">
+                        <h5 style="margin-bottom: 0.5rem;">${t.name}</h5>
+                        <p style="color: #666; font-size: 0.9rem; margin-bottom: 0.5rem;">${t.description || '설명 없음'}</p>
+                        <div style="font-size: 0.85rem; color: #999;">
+                            <span>${t.run_type || 'custom'}</span> | 
+                            <span>${t.case_count}개 케이스</span> | 
+                            <span>생성자: ${t.created_by}</span> |
+                            <span>${t.is_public ? '공개' : '비공개'}</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-success" onclick="createRunFromTemplate(${t.id}, '${t.name}')">런 생성</button>
+                        ${t.is_mine ? `<button class="btn btn-danger" onclick="deleteTemplate(${t.id})">삭제</button>` : ''}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } catch (err) {
+        alert('템플릿 로드 실패: ' + err);
+    }
+}
+
+async function saveAsTemplate() {
+    const runName = document.getElementById('runName').value;
+    const runDescription = document.getElementById('runDescription').value;
+    const runType = document.getElementById('runType').value;
+    const caseIdsStr = document.getElementById('selectedCaseIds').value;
+    
+    const caseIds = caseIdsStr.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+    
+    if (caseIds.length === 0) {
+        alert('최소 1개 이상의 케이스를 선택해주세요.');
+        return;
+    }
+    
+    const templateName = prompt('템플릿 이름:', runName || '새 템플릿');
+    if (!templateName) return;
+    
+    const isPublic = confirm('팀 전체에 공개하시겠습니까?\n(아니오 선택 시 본인만 사용 가능)');
+    
+    try {
+        const res = await fetch(`/api/projects/${projectId}/run-templates`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                name: templateName,
+                description: runDescription,
+                run_type: runType,
+                case_ids: caseIds,
+                is_public: isPublic
+            })
+        });
+        
+        if (res.ok) {
+            alert('템플릿이 저장되었습니다!');
+            hideCreateRun();
+        } else {
+            alert('템플릿 저장 실패');
+        }
+    } catch (err) {
+        alert('템플릿 저장 실패: ' + err);
+    }
+}
+
+async function createRunFromTemplate(templateId, templateName) {
+    const runName = prompt('런 이름:', `${templateName} - ${new Date().toISOString().split('T')[0]}`);
+    if (!runName) return;
+    
+    try {
+        const res = await fetch(`/api/run-templates/${templateId}/create-run`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ name: runName })
+        });
+        
+        if (res.ok) {
+            location.reload();
+        } else {
+            alert('런 생성 실패');
+        }
+    } catch (err) {
+        alert('런 생성 실패: ' + err);
+    }
+}
+
+async function deleteTemplate(templateId) {
+    if (!confirm('이 템플릿을 삭제하시겠습니까?')) return;
+    
+    try {
+        const res = await fetch(`/api/run-templates/${templateId}`, {
+            method: 'DELETE'
+        });
+        
+        if (res.ok) {
+            await loadTemplates();
+        } else {
+            alert('템플릿 삭제 실패');
+        }
+    } catch (err) {
+        alert('템플릿 삭제 실패: ' + err);
+    }
+}
+
+// 런 삭제
+async function deleteRun(runId) {
+    if (!confirm('이 런을 삭제하시겠습니까?\n(모든 실행 결과가 함께 삭제됩니다)')) return;
+    
+    try {
+        const res = await fetch(`/api/runs/${runId}`, {
+            method: 'DELETE'
+        });
+        
+        if (res.ok) {
+            location.reload();
+        } else {
+            alert('런 삭제 실패');
+        }
+    } catch (err) {
+        alert('런 삭제 실패: ' + err);
+    }
+}
+
+function createRun(event) {
+    event.preventDefault();
+    
+    const name = document.getElementById('runName').value;
+    const description = document.getElementById('runDescription').value;
+    const runType = document.getElementById('runType').value;
+    const caseIdsStr = document.getElementById('selectedCaseIds').value;
+    
+    const caseIds = caseIdsStr.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+    
+    if (caseIds.length === 0) {
+        alert('최소 1개 이상의 케이스를 선택해주세요.');
+        return;
+    }
+    
+    fetch(`/api/projects/${projectId}/runs`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            name: name,
+            description: description,
+            run_type: runType,
+            case_ids: caseIds
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        location.reload();
+    })
+    .catch(err => alert('런 생성 실패: ' + err));
+}
+
+// 케이스 선택 모달 관련 함수들
+async function openCaseSelector() {
+    document.getElementById('caseSelectorModal').style.display = 'block';
+    
+    // 데이터 로드
+    await loadSectionsAndCases();
+    renderSectionList();
+    renderCaseList('all');
+}
+
+function closeCaseSelector() {
+    document.getElementById('caseSelectorModal').style.display = 'none';
+}
+
+async function loadSectionsAndCases() {
+    try {
+        // 섹션 로드
+        const sectionsRes = await fetch(`/api/projects/${projectId}/sections`);
+        if (!sectionsRes.ok) {
+            throw new Error(`섹션 로드 실패: ${sectionsRes.status}`);
+        }
+        allSections = await sectionsRes.json();
+        console.log('섹션 로드 완료:', allSections.length);
+        
+        // 모든 케이스 로드
+        const casesRes = await fetch(`/api/projects/${projectId}/cases?status=active`);
+        if (!casesRes.ok) {
+            throw new Error(`케이스 로드 실패: ${casesRes.status}`);
+        }
+        allCases = await casesRes.json();
+        console.log('케이스 로드 완료:', allCases.length);
+    } catch (err) {
+        console.error('데이터 로드 오류:', err);
+        alert('데이터 로드 실패: ' + err.message);
+    }
+}
+
+function renderSectionList() {
+    const container = document.getElementById('modalSectionList');
+    
+    // 기존 섹션 항목 제거 (전체 케이스 제외)
+    const existingSections = container.querySelectorAll('.section-list-item:not([data-section-id="all"])');
+    existingSections.forEach(item => item.remove());
+    
+    // 전체 케이스 카운트 업데이트
+    updateSectionCount('all');
+    
+    // HTML 이스케이프 함수
+    const escapeHtml = (text) => {
+        if (!text) return '';
+        const map = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'};
+        return text.replace(/[&<>"']/g, m => map[m]);
+    };
+    
+    console.log('섹션 렌더링 시작:', allSections.length);
+    
+    // 섹션 항목 추가
+    allSections.forEach(section => {
+        const item = document.createElement('div');
+        item.className = 'section-list-item';
+        item.dataset.sectionId = section.id;
+        item.onclick = () => selectModalSection(section.id);
+        
+        const icon = section.parent_id ? '📄' : '📂';
+        const indent = section.parent_id ? '　' : '';
+        
+        item.innerHTML = `
+            ${indent}<span>${icon}</span>
+            <span>${escapeHtml(section.name)}</span>
+            <span class="selected-count" id="count-${section.id}" style="margin-left: auto; display: none;">0</span>
+        `;
+        
+        container.appendChild(item);
+        updateSectionCount(section.id);
+    });
+    
+    console.log('섹션 렌더링 완료');
+}
+
+function selectModalSection(sectionId) {
+    currentModalSection = sectionId;
+    
+    // 활성화 표시
+    document.querySelectorAll('.section-list-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    document.querySelector(`[data-section-id="${sectionId}"]`).classList.add('active');
+    
+    // 케이스 목록 렌더링
+    renderCaseList(sectionId);
+}
+
+function renderCaseList(sectionId) {
+    const container = document.getElementById('caseCheckboxList');
+    container.innerHTML = '';
+    
+    console.log('케이스 렌더링:', sectionId, '전체 케이스:', allCases.length);
+    
+    const filteredCases = sectionId === 'all' 
+        ? allCases 
+        : allCases.filter(c => c.section_id == sectionId);
+    
+    console.log('필터링된 케이스:', filteredCases.length);
+    
+    if (filteredCases.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #999; padding: 2rem;">이 섹션에 케이스가 없습니다.</p>';
+        document.getElementById('selectAllCases').checked = false;
+        return;
+    }
+    
+    filteredCases.forEach(caseItem => {
+        const div = document.createElement('div');
+        div.className = 'case-checkbox-item';
+        if (selectedCaseIds.has(caseItem.id)) {
+            div.classList.add('selected');
+        }
+        
+        // HTML 이스케이프 함수
+        const escapeHtml = (text) => {
+            const map = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'};
+            return text.replace(/[&<>"']/g, m => map[m]);
+        };
+        
+        div.innerHTML = `
+            <input type="checkbox" 
+                   id="case-${caseItem.id}" 
+                   value="${caseItem.id}"
+                   ${selectedCaseIds.has(caseItem.id) ? 'checked' : ''}
+                   onchange="toggleCase(${caseItem.id})">
+            <label for="case-${caseItem.id}" class="case-info" style="cursor: pointer;">
+                <div class="case-title">${escapeHtml(caseItem.title)}</div>
+                <div class="case-meta">
+                    <span class="priority-badge priority-${caseItem.priority}">${caseItem.priority}</span>
+                    <span>📂 ${escapeHtml(caseItem.section_name)}</span>
+                    ${caseItem.owner_name ? `<span>👤 ${escapeHtml(caseItem.owner_name)}</span>` : ''}
+                </div>
+            </label>
+        `;
+        
+        container.appendChild(div);
+    });
+    
+    // 전체 선택 체크박스 상태 업데이트
+    updateSelectAllCheckbox();
+}
+
+function toggleCase(caseId) {
+    if (selectedCaseIds.has(caseId)) {
+        selectedCaseIds.delete(caseId);
+    } else {
+        selectedCaseIds.add(caseId);
+    }
+    
+    updateSelectionUI();
+}
+
+function toggleSelectAll() {
+    const checkbox = document.getElementById('selectAllCases');
+    const filteredCases = currentModalSection === 'all' 
+        ? allCases 
+        : allCases.filter(c => c.section_id == currentModalSection);
+    
+    if (checkbox.checked) {
+        filteredCases.forEach(c => selectedCaseIds.add(c.id));
+    } else {
+        filteredCases.forEach(c => selectedCaseIds.delete(c.id));
+    }
+    
+    renderCaseList(currentModalSection);
+    updateSelectionUI();
+}
+
+function updateSelectAllCheckbox() {
+    const filteredCases = currentModalSection === 'all' 
+        ? allCases 
+        : allCases.filter(c => c.section_id == currentModalSection);
+    
+    if (filteredCases.length === 0) {
+        document.getElementById('selectAllCases').checked = false;
+        return;
+    }
+    
+    const allSelected = filteredCases.every(c => selectedCaseIds.has(c.id));
+    document.getElementById('selectAllCases').checked = allSelected;
+}
+
+function updateSelectionUI() {
+    // 선택 개수 업데이트
+    const count = selectedCaseIds.size;
+    document.getElementById('modalSelectionCount').textContent = count;
+    
+    // 각 섹션의 선택 개수 업데이트
+    updateSectionCount('all');
+    allSections.forEach(section => {
+        updateSectionCount(section.id);
+    });
+    
+    // 체크박스 스타일 업데이트
+    document.querySelectorAll('.case-checkbox-item').forEach(item => {
+        const checkbox = item.querySelector('input[type="checkbox"]');
+        if (checkbox.checked) {
+            item.classList.add('selected');
+        } else {
+            item.classList.remove('selected');
+        }
+    });
+    
+    updateSelectAllCheckbox();
+}
+
+function updateSectionCount(sectionId) {
+    const cases = sectionId === 'all' 
+        ? allCases 
+        : allCases.filter(c => c.section_id == sectionId);
+    
+    const selectedCount = cases.filter(c => selectedCaseIds.has(c.id)).length;
+    const countElement = document.getElementById(`count-${sectionId}`);
+    
+    if (countElement) {
+        if (selectedCount > 0) {
+            countElement.textContent = selectedCount;
+            countElement.style.display = 'inline-block';
+            document.querySelector(`[data-section-id="${sectionId}"]`)?.classList.add('has-selection');
+        } else {
+            countElement.style.display = 'none';
+            document.querySelector(`[data-section-id="${sectionId}"]`)?.classList.remove('has-selection');
+        }
+    }
+}
+
+function confirmCaseSelection() {
+    const selectedIds = Array.from(selectedCaseIds);
+    document.getElementById('selectedCaseIds').value = selectedIds.join(',');
+    document.getElementById('selectedCaseCount').textContent = selectedIds.length;
+    
+    // 선택된 케이스 미리보기
+    if (selectedIds.length > 0) {
+        const preview = selectedIds.length <= 5 
+            ? `선택됨: ${selectedIds.slice(0, 5).join(', ')}${selectedIds.length > 5 ? '...' : ''}`
+            : `${selectedIds.length}개 케이스 선택됨`;
+        document.getElementById('selectedCasePreview').textContent = preview;
+    } else {
+        document.getElementById('selectedCasePreview').textContent = '';
+    }
+    
+    closeCaseSelector();
+}
+
+// 모달 외부 클릭 시 닫기
+window.onclick = function(event) {
+    const modal = document.getElementById('caseSelectorModal');
+    if (event.target === modal) {
+        closeCaseSelector();
+    }
+}
+</script>
+{% endblock %}
+
+

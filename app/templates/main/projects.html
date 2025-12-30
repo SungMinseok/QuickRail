@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}프로젝트 목록 - QuickRail{% endblock %}
+
+{% block content %}
+<div style="max-width: 1000px; margin: 0 auto;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <h1>프로젝트</h1>
+        {% if current_user.role in ['admin', 'author'] %}
+        <button class="btn btn-primary" onclick="showCreateProject()">+ 새 프로젝트</button>
+        {% endif %}
+    </div>
+    
+    <!-- 프로젝트 생성 폼 (숨김) -->
+    <div id="createProjectForm" class="card" style="display: none; margin-bottom: 2rem;">
+        <h3 style="margin-bottom: 1rem;">새 프로젝트 생성</h3>
+        <form id="projectForm" onsubmit="createProject(event)">
+            <div class="form-group">
+                <label class="form-label">프로젝트 이름</label>
+                <input type="text" id="projectName" name="name" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">설명 (선택)</label>
+                <textarea id="projectDescription" name="description" class="form-control"></textarea>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button type="submit" class="btn btn-success">생성</button>
+                <button type="button" class="btn btn-secondary" onclick="hideCreateProject()">취소</button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- 프로젝트 목록 -->
+    <div class="projects-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">
+        {% for project in projects %}
+        <div class="card" style="cursor: pointer; transition: transform 0.2s;" onclick="location.href='{{ url_for('main.cases', project_id=project.id) }}'">
+            <h3 style="margin-bottom: 0.5rem; color: #2c3e50;">{{ project.name }}</h3>
+            <p style="color: #666; font-size: 0.9rem; margin-bottom: 1rem;">
+                {{ project.description or '설명 없음' }}
+            </p>
+            <div style="display: flex; gap: 0.5rem; font-size: 0.85rem; color: #999;">
+                <span>생성: {{ project.created_at.strftime('%Y-%m-%d') }}</span>
+            </div>
+            <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                <a href="{{ url_for('main.cases', project_id=project.id) }}" class="btn btn-primary btn-sm" onclick="event.stopPropagation()">케이스</a>
+                <a href="{{ url_for('main.runs', project_id=project.id) }}" class="btn btn-success btn-sm" onclick="event.stopPropagation()">런</a>
+                <a href="{{ url_for('main.dashboard', project_id=project.id) }}" class="btn btn-secondary btn-sm" onclick="event.stopPropagation()">리포트</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    {% if not projects %}
+    <div class="card" style="text-align: center; padding: 3rem;">
+        <p style="color: #999; font-size: 1.1rem;">프로젝트가 없습니다.</p>
+        {% if current_user.role in ['admin', 'author'] %}
+        <button class="btn btn-primary" onclick="showCreateProject()" style="margin-top: 1rem;">첫 프로젝트 만들기</button>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function showCreateProject() {
+    document.getElementById('createProjectForm').style.display = 'block';
+    document.getElementById('projectName').focus();
+}
+
+function hideCreateProject() {
+    document.getElementById('createProjectForm').style.display = 'none';
+    document.getElementById('projectForm').reset();
+}
+
+function createProject(event) {
+    event.preventDefault();
+    
+    const name = document.getElementById('projectName').value;
+    const description = document.getElementById('projectDescription').value;
+    
+    fetch('/api/projects', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            name: name,
+            description: description
+        })
+    })
+    .then(response => {
+        if (response.ok) {
+            return response.json();
+        }
+        throw new Error('프로젝트 생성 실패');
+    })
+    .then(data => {
+        location.reload();
+    })
+    .catch(error => {
+        alert(error.message);
+    });
+}
+</script>
+{% endblock %}
+
+

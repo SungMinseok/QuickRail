@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.name }} - 대시보드{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 1rem;">
+    <h2>{{ project.name }} - 대시보드</h2>
+    <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+        <a href="{{ url_for('main.cases', project_id=project.id) }}" class="btn btn-secondary">케이스</a>
+        <a href="{{ url_for('main.runs', project_id=project.id) }}" class="btn btn-secondary">런</a>
+        <a href="{{ url_for('main.dashboard', project_id=project.id) }}" class="btn btn-primary">리포트</a>
+    </div>
+</div>
+
+<div style="max-width: 1400px;">
+    <!-- 운영 인사이트 (Phase 2) -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+        <!-- 최근 실패 많은 케이스 -->
+        <div class="card">
+            <h4 style="margin-bottom: 1rem; color: #e74c3c;">🔥 자주 실패하는 케이스</h4>
+            <div id="failedCasesList" style="font-size: 0.9rem;">
+                <p style="text-align: center; color: #999;">로딩 중...</p>
+            </div>
+        </div>
+        
+        <!-- 오래된 케이스 -->
+        <div class="card">
+            <h4 style="margin-bottom: 1rem; color: #f39c12;">⏰ 오래된 케이스 (90일+)</h4>
+            <div id="staleCasesList" style="font-size: 0.9rem;">
+                <p style="text-align: center; color: #999;">로딩 중...</p>
+            </div>
+        </div>
+        
+        <!-- 불안정한 케이스 (Flaky) -->
+        <div class="card">
+            <h4 style="margin-bottom: 1rem; color: #9b59b6;">⚠️ 불안정한 케이스</h4>
+            <div id="flakyCasesList" style="font-size: 0.9rem;">
+                <p style="text-align: center; color: #999;">로딩 중...</p>
+            </div>
+        </div>
+    </div>
+    
+    <h3 style="margin-bottom: 1.5rem;">최근 테스트 런 ({{ runs_with_stats|length }})</h3>
+    
+    {% for item in runs_with_stats %}
+    {% set run = item.run %}
+    {% set stats = item.stats %}
+    
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+            <div>
+                <h4 style="margin-bottom: 0.5rem;">
+                    <a href="{{ url_for('main.run_execute', run_id=run.id) }}" style="color: #2c3e50; text-decoration: none;">
+                        {{ run.name }}
+                    </a>
+                </h4>
+                <div style="font-size: 0.9rem; color: #666;">
+                    <span>{{ run.run_type or 'custom' }}</span> | 
+                    <span>생성자: {{ run.creator.name }}</span> | 
+                    <span>{{ run.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                    {% if run.is_closed %}
+                    <span style="color: #27ae60; font-weight: 500;"> | 완료됨</span>
+                    {% else %}
+                    <span style="color: #3498db; font-weight: 500;"> | 진행중</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 1.3rem; font-weight: bold; color: {% if stats.pass_rate >= 90 %}#27ae60{% elif stats.pass_rate >= 70 %}#f39c12{% else %}#e74c3c{% endif %}">
+                    Pass Rate: {{ stats.pass_rate }}%
+                </div>
+                <div style="font-size: 0.9rem; color: #666;">
+                    진행률: {{ stats.progress }}% ({{ stats.executed }}/{{ stats.total }})
+                </div>
+            </div>
+        </div>
+        
+        <!-- 진행률 바 -->
+        <div style="background: #ecf0f1; height: 30px; border-radius: 15px; overflow: hidden; position: relative;">
+            {% set pass_width = (stats.pass / stats.total * 100) if stats.total > 0 else 0 %}
+            {% set fail_width = (stats.fail / stats.total * 100) if stats.total > 0 else 0 %}
+            {% set blocked_width = (stats.blocked / stats.total * 100) if stats.total > 0 else 0 %}
+            {% set retest_width = (stats.retest / stats.total * 100) if stats.total > 0 else 0 %}
+            {% set na_width = (stats.na / stats.total * 100) if stats.total > 0 else 0 %}
+            
+            <div style="position: absolute; height: 100%; background: #27ae60; width: {{ pass_width }}%; transition: width 0.3s;"></div>
+            <div style="position: absolute; height: 100%; background: #e74c3c; width: {{ fail_width }}%; left: {{ pass_width }}%; transition: width 0.3s, left 0.3s;"></div>
+            <div style="position: absolute; height: 100%; background: #95a5a6; width: {{ blocked_width }}%; left: {{ pass_width + fail_width }}%; transition: width 0.3s, left 0.3s;"></div>
+            <div style="position: absolute; height: 100%; background: #f39c12; width: {{ retest_width }}%; left: {{ pass_width + fail_width + blocked_width }}%; transition: width 0.3s, left 0.3s;"></div>
+            <div style="position: absolute; height: 100%; background: #bdc3c7; width: {{ na_width }}%; left: {{ pass_width + fail_width + blocked_width + retest_width }}%; transition: width 0.3s, left 0.3s;"></div>
+        </div>
+        
+        <!-- 통계 -->
+        <div style="display: flex; justify-content: space-around; margin-top: 1rem; text-align: center;">
+            <div>
+                <div style="font-size: 1.5rem; font-weight: bold; color: #27ae60;">{{ stats.pass }}</div>
+                <div style="font-size: 0.85rem; color: #666;">Pass</div>
+            </div>
+            <div>
+                <div style="font-size: 1.5rem; font-weight: bold; color: #e74c3c;">{{ stats.fail }}</div>
+                <div style="font-size: 0.85rem; color: #666;">Fail</div>
+            </div>
+            <div>
+                <div style="font-size: 1.5rem; font-weight: bold; color: #95a5a6;">{{ stats.blocked }}</div>
+                <div style="font-size: 0.85rem; color: #666;">Blocked</div>
+            </div>
+            <div>
+                <div style="font-size: 1.5rem; font-weight: bold; color: #f39c12;">{{ stats.retest }}</div>
+                <div style="font-size: 0.85rem; color: #666;">Retest</div>
+            </div>
+            <div>
+                <div style="font-size: 1.5rem; font-weight: bold; color: #bdc3c7;">{{ stats.na }}</div>
+                <div style="font-size: 0.85rem; color: #666;">N/A</div>
+            </div>
+            <div>
+                <div style="font-size: 1.5rem; font-weight: bold; color: #999;">{{ stats.pending }}</div>
+                <div style="font-size: 0.85rem; color: #666;">미실행</div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    
+    {% if not runs_with_stats %}
+    <div class="card" style="text-align: center; padding: 3rem;">
+        <p style="color: #999; font-size: 1.1rem;">실행된 런이 없습니다.</p>
+        <a href="{{ url_for('main.runs', project_id=project.id) }}" class="btn btn-primary" style="margin-top: 1rem;">첫 런 만들기</a>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+const projectId = {{ project.id }};
+
+// 페이지 로드 시 분석 데이터 로드
+window.addEventListener('DOMContentLoaded', async function() {
+    await Promise.all([
+        loadFailedCases(),
+        loadStaleCases(),
+        loadFlakyCases()
+    ]);
+});
+
+async function loadFailedCases() {
+    try {
+        const res = await fetch(`/api/projects/${projectId}/analytics/failed-cases`);
+        const cases = await res.json();
+        
+        const container = document.getElementById('failedCasesList');
+        
+        if (cases.length === 0) {
+            container.innerHTML = '<p style="text-align: center; color: #999;">최근 실패한 케이스가 없습니다 👍</p>';
+            return;
+        }
+        
+        container.innerHTML = cases.map((c, idx) => `
+            <div style="padding: 0.75rem; margin: 0.5rem 0; background: ${idx === 0 ? '#fee' : '#f9f9f9'}; border-left: 3px solid #e74c3c; border-radius: 3px;">
+                <div style="font-weight: 500; margin-bottom: 0.25rem;">${c.title}</div>
+                <div style="font-size: 0.85rem; color: #666;">
+                    <span>📂 ${c.section_name}</span> | 
+                    <span style="color: #e74c3c; font-weight: 500;">${c.fail_count}회 실패</span>
+                </div>
+            </div>
+        `).join('');
+    } catch (err) {
+        console.error('Failed cases load error:', err);
+        document.getElementById('failedCasesList').innerHTML = '<p style="color: #e74c3c;">로드 실패</p>';
+    }
+}
+
+async function loadStaleCases() {
+    try {
+        const res = await fetch(`/api/projects/${projectId}/analytics/stale-cases`);
+        const cases = await res.json();
+        
+        const container = document.getElementById('staleCasesList');
+        
+        if (cases.length === 0) {
+            container.innerHTML = '<p style="text-align: center; color: #999;">모든 케이스가 최신입니다 ✨</p>';
+            return;
+        }
+        
+        container.innerHTML = cases.slice(0, 5).map(c => `
+            <div style="padding: 0.75rem; margin: 0.5rem 0; background: #f9f9f9; border-left: 3px solid #f39c12; border-radius: 3px;">
+                <div style="font-weight: 500; margin-bottom: 0.25rem;">${c.title}</div>
+                <div style="font-size: 0.85rem; color: #666;">
+                    <span>📂 ${c.section_name}</span> | 
+                    <span style="color: #f39c12; font-weight: 500;">${c.days_ago}일 전</span>
+                </div>
+            </div>
+        `).join('');
+        
+        if (cases.length > 5) {
+            container.innerHTML += `<p style="text-align: center; color: #999; margin-top: 0.5rem;">외 ${cases.length - 5}개 더...</p>`;
+        }
+    } catch (err) {
+        console.error('Stale cases load error:', err);
+        document.getElementById('staleCasesList').innerHTML = '<p style="color: #e74c3c;">로드 실패</p>';
+    }
+}
+
+async function loadFlakyCases() {
+    try {
+        const res = await fetch(`/api/projects/${projectId}/analytics/flaky-cases`);
+        const cases = await res.json();
+        
+        const container = document.getElementById('flakyCasesList');
+        
+        if (cases.length === 0) {
+            container.innerHTML = '<p style="text-align: center; color: #999;">안정적인 케이스들입니다 ✅</p>';
+            return;
+        }
+        
+        container.innerHTML = cases.slice(0, 5).map(c => `
+            <div style="padding: 0.75rem; margin: 0.5rem 0; background: #f9f9f9; border-left: 3px solid #9b59b6; border-radius: 3px;">
+                <div style="font-weight: 500; margin-bottom: 0.25rem;">${c.title}</div>
+                <div style="font-size: 0.85rem; color: #666;">
+                    <span>📂 ${c.section_name}</span> | 
+                    <span style="color: #9b59b6; font-weight: 500;">Pass ${c.pass_rate}%</span> |
+                    <span>${c.total_runs}회 실행</span>
+                </div>
+            </div>
+        `).join('');
+        
+        if (cases.length > 5) {
+            container.innerHTML += `<p style="text-align: center; color: #999; margin-top: 0.5rem;">외 ${cases.length - 5}개 더...</p>`;
+        }
+    } catch (err) {
+        console.error('Flaky cases load error:', err);
+        document.getElementById('flakyCasesList').innerHTML = '<p style="color: #e74c3c;">로드 실패</p>';
+    }
+}
+</script>
+{% endblock %}
+
+

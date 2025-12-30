@@ -1,0 +1,914 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.name }} - 케이스 관리{% endblock %}
+
+{# 재귀 매크로: 섹션 트리를 최대 4단계까지 렌더링 #}
+{% macro render_sections(sections, current_section_id, current_user, depth) %}
+    {% if depth < 4 %}
+        {% for section in sections %}
+            <div class="section-wrapper" data-section-id="{{ section.id }}" data-depth="{{ depth }}">
+                <div class="section-item {% if current_section_id == section.id %}active{% endif %}" data-section-id="{{ section.id }}">
+                    <span>{% if depth == 0 %}📂{% elif depth == 1 %}📄{% elif depth == 2 %}📋{% else %}📌{% endif %}</span>
+                    <span class="section-name" onclick="goToSection({{ section.id }})">{{ section.name }}</span>
+                    {% if current_user.role in ['admin', 'author'] %}
+                    <div class="section-actions">
+                        {% if depth < 3 %}
+                        <button class="section-btn" onclick="event.stopPropagation(); addSection({{ section.id }}, {{ depth + 1 }})" title="하위 섹션 추가">+</button>
+                        {% endif %}
+                        <button class="section-btn" onclick="event.stopPropagation(); editSection({{ section.id }}, '{{ section.name }}')" title="이름 변경">✏️</button>
+                        <button class="section-btn" onclick="event.stopPropagation(); deleteSection({{ section.id }})" title="삭제">🗑️</button>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if section.children %}
+                <div class="section-children sortable-list" data-parent-id="{{ section.id }}" data-depth="{{ depth + 1 }}">
+                    {{ render_sections(section.children, current_section_id, current_user, depth + 1) }}
+                </div>
+                {% endif %}
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endmacro %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<style>
+    .two-pane-layout {
+        display: grid;
+        grid-template-columns: 300px 1fr;
+        gap: 1.5rem;
+        height: calc(100vh - 150px);
+    }
+    
+    .section-tree {
+        background: white;
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-y: auto;
+    }
+    
+    .section-item {
+        padding: 0.5rem 0.75rem;
+        margin: 0.25rem 0;
+        border-radius: 4px;
+        cursor: move;
+        transition: background 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        position: relative;
+    }
+    
+    .section-item:hover {
+        background: #f0f0f0;
+    }
+    
+    .section-item.active {
+        background: #3498db;
+        color: white;
+    }
+    
+    .section-item.sortable-ghost {
+        opacity: 0.4;
+        background: #e3f2fd;
+    }
+    
+    .section-item.sortable-drag {
+        opacity: 0.8;
+    }
+    
+    .section-children {
+        margin-left: 1.5rem;
+        padding-left: 0.5rem;
+        border-left: 2px solid #e0e0e0;
+    }
+    
+    .section-name {
+        flex: 1;
+    }
+    
+    .section-actions {
+        display: none;
+        gap: 0.25rem;
+    }
+    
+    .section-item:hover .section-actions {
+        display: flex;
+    }
+    
+    .section-btn {
+        padding: 0.25rem 0.5rem;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        border-radius: 3px;
+        font-size: 0.85rem;
+    }
+    
+    .section-btn:hover {
+        background: rgba(0,0,0,0.1);
+    }
+    
+    .sortable-list {
+        min-height: 20px;
+    }
+    
+    .case-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .case-filters {
+        background: white;
+        padding: 1rem;
+        border-radius: 8px;
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    
+    .case-list {
+        background: white;
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-y: auto;
+    }
+    
+    .case-item {
+        padding: 1rem;
+        border-bottom: 1px solid #eee;
+        transition: background 0.2s;
+        display: flex;
+        gap: 1rem;
+        align-items: start;
+    }
+    
+    .case-item:hover {
+        background: #f9f9f9;
+    }
+    
+    .case-item:last-child {
+        border-bottom: none;
+    }
+    
+    .case-content {
+        flex: 1;
+    }
+    
+    .case-actions {
+        display: none;
+        gap: 0.25rem;
+        flex-shrink: 0;
+    }
+    
+    .case-item:hover .case-actions {
+        display: flex;
+    }
+    
+    .case-action-btn {
+        padding: 0.25rem 0.5rem;
+        background: transparent;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        transition: all 0.2s;
+    }
+    
+    .case-action-btn:hover {
+        background: #f0f0f0;
+        border-color: #999;
+    }
+    
+    .case-action-btn.edit:hover {
+        background: #e3f2fd;
+        border-color: #3498db;
+        color: #3498db;
+    }
+    
+    .case-action-btn.delete:hover {
+        background: #ffebee;
+        border-color: #e74c3c;
+        color: #e74c3c;
+    }
+    
+    .case-title {
+        font-size: 1.1rem;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        cursor: pointer;
+    }
+    
+    .case-title:hover {
+        color: #3498db;
+    }
+    
+    .case-meta {
+        display: flex;
+        gap: 1rem;
+        font-size: 0.9rem;
+        color: #666;
+        flex-wrap: wrap;
+    }
+    
+    .priority-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 3px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+    
+    .priority-P0 { background: #e74c3c; color: white; }
+    .priority-P1 { background: #e67e22; color: white; }
+    .priority-P2 { background: #f39c12; color: white; }
+    .priority-P3 { background: #95a5a6; color: white; }
+    
+    .tag-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 3px;
+        background: #3498db;
+        color: white;
+        font-size: 0.8rem;
+    }
+    
+    .quick-add-form {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 1rem;">
+    <h2>{{ project.name }}</h2>
+    <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+        <a href="{{ url_for('main.cases', project_id=project.id) }}" class="btn btn-primary">케이스</a>
+        <a href="{{ url_for('main.runs', project_id=project.id) }}" class="btn btn-secondary">런</a>
+        <a href="{{ url_for('main.dashboard', project_id=project.id) }}" class="btn btn-secondary">리포트</a>
+    </div>
+</div>
+
+<div class="two-pane-layout">
+    <!-- 좌측: Section 트리 -->
+    <div class="section-tree">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3>섹션</h3>
+            {% if current_user.role in ['admin', 'author'] %}
+            <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.9rem;" onclick="addSection(null)">+ 루트</button>
+            {% endif %}
+        </div>
+        
+        <div class="section-item {% if not current_section_id %}active{% endif %}" onclick="goToSection(null)" style="cursor: pointer;">
+            <span>📁</span>
+            <span class="section-name">전체 케이스</span>
+        </div>
+        
+        <div id="sectionTree" class="sortable-list">
+            {{ render_sections(sections, current_section_id, current_user, 0) }}
+        </div>
+    </div>
+    
+    <!-- 우측: Case 리스트 -->
+    <div class="case-panel">
+        <!-- 필터 -->
+        <div class="case-filters">
+            <input type="text" placeholder="검색..." class="form-control" style="max-width: 300px;" value="{{ search }}" 
+                   onkeyup="if(event.key=='Enter') filterCases()">
+            
+            <select class="form-control" style="max-width: 150px;" onchange="filterCases()">
+                <option value="">모든 우선순위</option>
+                <option value="Critical" {% if priority=='Critical' %}selected{% endif %}>Critical</option>
+                <option value="High" {% if priority=='High' %}selected{% endif %}>High</option>
+                <option value="Medium" {% if priority=='Medium' %}selected{% endif %}>Medium</option>
+                <option value="Low" {% if priority=='Low' %}selected{% endif %}>Low</option>
+            </select>
+            
+            <select class="form-control" style="max-width: 200px;" onchange="filterCases()">
+                <option value="">모든 태그</option>
+                {% for tag in tags %}
+                <option value="{{ tag.name }}" {% if selected_tag==tag.name %}selected{% endif %}>{{ tag.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <!-- Quick Add -->
+        {% if current_user.role in ['admin', 'author'] %}
+        <div class="card">
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <button type="button" class="btn btn-secondary" style="padding: 0.5rem 1rem;" onclick="toggleBulkAdd()">📝 여러 개 추가</button>
+            </div>
+            <form class="quick-add-form" id="singleAddForm" onsubmit="quickAddCase(event)">
+                <input type="text" id="quickAddTitle" placeholder="케이스 제목 입력 후 Enter..." class="form-control" required 
+                       oninput="checkDuplicates(this.value)">
+                <button type="submit" class="btn btn-success">추가</button>
+            </form>
+            <form id="bulkAddForm" style="display: none;" onsubmit="bulkAddCases(event)">
+                <textarea id="bulkAddText" class="form-control" placeholder="케이스 제목들을 개행(엔터)으로 구분하여 입력하세요..." 
+                          style="min-height: 150px; font-family: monospace;"></textarea>
+                <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                    <button type="submit" class="btn btn-success">일괄 추가</button>
+                    <button type="button" class="btn btn-secondary" onclick="toggleBulkAdd()">취소</button>
+                </div>
+            </form>
+            <div id="duplicateWarning" style="display: none; margin-top: 0.5rem; padding: 0.75rem; background: #fff3cd; border-left: 3px solid #ffc107; border-radius: 4px;">
+                <strong>⚠️ 유사한 케이스가 있습니다:</strong>
+                <div id="duplicateList" style="margin-top: 0.5rem; font-size: 0.9rem;"></div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Case 리스트 -->
+        <div class="case-list">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3>케이스 ({{ cases|length }})</h3>
+                <select class="form-control" style="width: auto;" onchange="changeSort(this.value)">
+                    <option value="default" {% if current_sort == 'default' or not current_sort %}selected{% endif %}>기본</option>
+                    <option value="recent" {% if current_sort == 'recent' %}selected{% endif %}>최근순</option>
+                    <option value="oldest" {% if current_sort == 'oldest' %}selected{% endif %}>오래된 순</option>
+                    <option value="title" {% if current_sort == 'title' %}selected{% endif %}>제목순</option>
+                    <option value="priority" {% if current_sort == 'priority' %}selected{% endif %}>우선순위</option>
+                </select>
+            </div>
+            
+            <div id="caseListSortable">
+            {% for case in cases %}
+            <div class="case-item" data-case-id="{{ case.id }}">
+                <div class="case-content" onclick="showCaseDetail({{ case.id }})" style="cursor: pointer; flex: 1;">
+                    <div class="case-title">{{ case.title }}</div>
+                    <div class="case-meta">
+                        <span class="priority-badge priority-{{ case.priority }}">{{ case.priority }}</span>
+                        {% if case.owner %}
+                        <span>👤 {{ case.owner.name }}</span>
+                        {% endif %}
+                        {% for tag in case.tags %}
+                        <span class="tag-badge">{{ tag.name }}</span>
+                        {% endfor %}
+                        <span>🕐 {{ case.updated_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                        <span style="font-size: 0.85rem; color: #999;">
+                            {% if case.creator %}
+                            | 생성: {{ case.creator.name }}
+                            {% endif %}
+                            {% if case.updater and case.updated_at != case.created_at %}
+                            | 수정: {{ case.updater.name }}
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+                {% if current_user.role in ['admin', 'author'] %}
+                <div class="case-actions">
+                    <button class="case-action-btn edit" onclick="event.stopPropagation(); editCase({{ case.id }}, '{{ case.title }}')" title="편집">✏️</button>
+                    <button class="case-action-btn" onclick="event.stopPropagation(); copyCase({{ case.id }})" title="복사" style="border-color: #9b59b6; color: #9b59b6;">📋</button>
+                    <button class="case-action-btn delete" onclick="event.stopPropagation(); deleteCase({{ case.id }})" title="삭제">🗑️</button>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+            </div>
+            
+            {% if not cases %}
+            <div style="text-align: center; padding: 3rem; color: #999;">
+                케이스가 없습니다. Quick Add로 빠르게 추가해보세요!
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- 케이스 상세보기 모달 -->
+<div id="caseDetailModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 800px;">
+        <div class="modal-header">
+            <h3 id="modalCaseTitle">케이스 상세</h3>
+            <button class="close" onclick="closeCaseDetail()">&times;</button>
+        </div>
+        <div class="modal-body" id="modalCaseContent">
+            <!-- JavaScript로 동적 로드 -->
+        </div>
+    </div>
+</div>
+
+<script>
+const projectId = {{ project.id }};
+const currentSectionId = {{ current_section_id or 'null' }};
+
+// 드래그앤드롭 초기화
+document.addEventListener('DOMContentLoaded', function() {
+    initSortable();
+});
+
+function initSortable() {
+    const sortableLists = document.querySelectorAll('.sortable-list');
+    
+    sortableLists.forEach(list => {
+        new Sortable(list, {
+            group: 'nested',
+            animation: 150,
+            fallbackOnBody: true,
+            swapThreshold: 0.65,
+            handle: '.section-item',
+            ghostClass: 'sortable-ghost',
+            dragClass: 'sortable-drag',
+            onEnd: function(evt) {
+                updateSectionOrder(evt);
+            }
+        });
+    });
+}
+
+function updateSectionOrder(evt) {
+    const sectionWrapper = evt.item;
+    const sectionId = sectionWrapper.dataset.sectionId;
+    const newParentList = evt.to;
+    const newParentId = newParentList.dataset.parentId || null;
+    const newIndex = evt.newIndex;
+    
+    fetch(`/api/sections/${sectionId}`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            parent_id: newParentId,
+            order_index: newIndex
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        console.log('섹션 순서 업데이트 완료');
+    })
+    .catch(err => {
+        alert('섹션 이동 실패: ' + err);
+        location.reload();
+    });
+}
+
+function goToSection(sectionId) {
+    if (sectionId) {
+        location.href = `/p/${projectId}/cases?section_id=${sectionId}`;
+    } else {
+        location.href = `/p/${projectId}/cases`;
+    }
+}
+
+function quickAddCase(event) {
+    event.preventDefault();
+    const title = document.getElementById('quickAddTitle').value;
+    
+    if (!currentSectionId) {
+        alert('섹션을 먼저 선택해주세요.');
+        return;
+    }
+    
+    fetch(`/api/projects/${projectId}/cases`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            title: title,
+            section_id: currentSectionId
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        location.reload();
+    })
+    .catch(err => alert('케이스 추가 실패: ' + err));
+}
+
+function filterCases() {
+    const search = document.querySelector('input[placeholder="검색..."]').value;
+    const priority = document.querySelectorAll('select')[0].value;
+    const tag = document.querySelectorAll('select')[1].value;
+    
+    let url = `/p/${projectId}/cases?`;
+    if (currentSectionId) url += `section_id=${currentSectionId}&`;
+    if (search) url += `q=${search}&`;
+    if (priority) url += `priority=${priority}&`;
+    if (tag) url += `tag=${tag}&`;
+    
+    location.href = url;
+}
+
+function addSection(parentId, depth = 0) {
+    // 최대 깊이 체크 (0: 루트, 1: 1단계, 2: 2단계, 3: 3단계)
+    if (depth >= 4) {
+        alert('섹션은 최대 4단계까지만 생성할 수 있습니다.');
+        return;
+    }
+    
+    const name = prompt('섹션 이름:');
+    if (!name) return;
+    
+    fetch(`/api/projects/${projectId}/sections`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            name: name,
+            parent_id: parentId
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        location.reload();
+    })
+    .catch(err => alert('섹션 생성 실패: ' + err));
+}
+
+function editSection(sectionId, currentName) {
+    const name = prompt('새 섹션 이름:', currentName);
+    if (!name || name === currentName) return;
+    
+    fetch(`/api/sections/${sectionId}`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ name: name })
+    })
+    .then(res => res.json())
+    .then(data => {
+        location.reload();
+    })
+    .catch(err => alert('섹션 수정 실패: ' + err));
+}
+
+function deleteSection(sectionId) {
+    if (!confirm('이 섹션을 삭제하시겠습니까? (하위 케이스도 함께 삭제됩니다)')) return;
+    
+    fetch(`/api/sections/${sectionId}`, {
+        method: 'DELETE'
+    })
+    .then(() => {
+        location.reload();
+    })
+    .catch(err => alert('섹션 삭제 실패: ' + err));
+}
+
+function showCaseDetail(caseId) {
+    // TODO: 슬라이드 패널로 케이스 상세/편집 표시
+    alert('케이스 상세 보기 (향후 구현)');
+}
+
+// 중복 감지
+let duplicateCheckTimeout;
+async function checkDuplicates(title) {
+    clearTimeout(duplicateCheckTimeout);
+    
+    const warningDiv = document.getElementById('duplicateWarning');
+    const listDiv = document.getElementById('duplicateList');
+    
+    if (!title || title.length < 3) {
+        warningDiv.style.display = 'none';
+        return;
+    }
+    
+    duplicateCheckTimeout = setTimeout(async () => {
+        try {
+            const res = await fetch(`/api/projects/${projectId}/cases/check-duplicates`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ title: title })
+            });
+            
+            const data = await res.json();
+            
+            if (data.duplicates && data.duplicates.length > 0) {
+                listDiv.innerHTML = data.duplicates.map(dup => {
+                    const matchIcon = dup.match_type === 'exact' ? '🔴' : 
+                                    dup.match_type === 'substring' ? '🟡' : '🟢';
+                    return `
+                        <div style="padding: 0.5rem; margin: 0.25rem 0; background: white; border-radius: 3px; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                ${matchIcon} <strong>${dup.title}</strong>
+                                <span style="color: #666; font-size: 0.85rem;">(${dup.section_name}, ${dup.similarity}% 유사)</span>
+                            </div>
+                            <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.85rem;" onclick="goToCaseDetail(${dup.id})">보기</button>
+                        </div>
+                    `;
+                }).join('');
+                warningDiv.style.display = 'block';
+            } else {
+                warningDiv.style.display = 'none';
+            }
+        } catch (err) {
+            console.error('중복 체크 실패:', err);
+        }
+    }, 500);  // 500ms debounce
+}
+
+function goToCaseDetail(caseId) {
+    // 케이스 상세로 이동 (현재는 alert)
+    alert(`케이스 #${caseId} 상세 보기 (향후 구현)`);
+}
+
+// 케이스 편집
+function editCase(caseId, currentTitle) {
+    const newTitle = prompt('케이스 제목:', currentTitle);
+    if (!newTitle || newTitle === currentTitle) return;
+    
+    fetch(`/api/cases/${caseId}`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ title: newTitle })
+    })
+    .then(res => res.json())
+    .then(data => {
+        location.reload();
+    })
+    .catch(err => alert('케이스 수정 실패: ' + err));
+}
+
+// 케이스 삭제 (아카이브)
+function deleteCase(caseId) {
+    if (!confirm('이 케이스를 삭제하시겠습니까?')) return;
+    
+    fetch(`/api/cases/${caseId}/archive`, {
+        method: 'POST'
+    })
+    .then(res => res.json())
+    .then(data => {
+        location.reload();
+    })
+    .catch(err => alert('케이스 삭제 실패: ' + err));
+}
+
+// 일괄 추가 토글
+function toggleBulkAdd() {
+    const singleForm = document.getElementById('singleAddForm');
+    const bulkForm = document.getElementById('bulkAddForm');
+    
+    if (bulkForm.style.display === 'none') {
+        singleForm.style.display = 'none';
+        bulkForm.style.display = 'block';
+        document.getElementById('bulkAddText').focus();
+    } else {
+        singleForm.style.display = 'flex';
+        bulkForm.style.display = 'none';
+        document.getElementById('bulkAddText').value = '';
+    }
+}
+
+// 여러 케이스 일괄 추가
+async function bulkAddCases(event) {
+    event.preventDefault();
+    
+    if (!currentSectionId) {
+        alert('섹션을 먼저 선택해주세요.');
+        return;
+    }
+    
+    const text = document.getElementById('bulkAddText').value;
+    const titles = text.split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+    
+    if (titles.length === 0) {
+        alert('추가할 케이스를 입력해주세요.');
+        return;
+    }
+    
+    if (!confirm(`${titles.length}개의 케이스를 추가하시겠습니까?`)) return;
+    
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (const title of titles) {
+        try {
+            const res = await fetch(`/api/projects/${projectId}/cases`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    title: title,
+                    section_id: currentSectionId
+                })
+            });
+            
+            if (res.ok) {
+                successCount++;
+            } else {
+                failCount++;
+            }
+        } catch (err) {
+            failCount++;
+        }
+    }
+    
+    alert(`완료!\n성공: ${successCount}개\n실패: ${failCount}개`);
+    location.reload();
+}
+
+// 정렬 변경
+function changeSort(sortType) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('sort', sortType);
+    window.location.href = url.toString();
+}
+
+// 케이스 드래그 앤 드롭 초기화
+function initCaseSortable() {
+    const caseList = document.getElementById('caseListSortable');
+    if (!caseList || typeof Sortable === 'undefined') return;
+    
+    // 기본 정렬일 때만 드래그 가능
+    const isDefaultSort = currentSort === 'default' || currentSort === '';
+    
+    new Sortable(caseList, {
+        animation: 150,
+        handle: '.case-content',
+        ghostClass: 'sortable-ghost',
+        disabled: !isDefaultSort,  // 기본 정렬이 아니면 비활성화
+        onEnd: function(evt) {
+            updateCaseOrder(evt);
+        }
+    });
+    
+    console.log('Sortable 초기화:', isDefaultSort ? '드래그 가능' : '드래그 불가');
+}
+
+// 케이스 순서 업데이트
+function updateCaseOrder(evt) {
+    const caseId = evt.item.dataset.caseId;
+    const newIndex = evt.newIndex;
+    
+    fetch(`/api/cases/${caseId}`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            order_index: newIndex
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        console.log('케이스 순서 업데이트 완료');
+    })
+    .catch(err => {
+        alert('순서 변경 실패: ' + err);
+        location.reload();
+    });
+}
+
+// 케이스 복사
+async function copyCase(caseId) {
+    if (!confirm('이 케이스를 복사하시겠습니까?')) return;
+    
+    try {
+        // 현재 케이스의 order_index 찾기
+        const caseItem = document.querySelector(`.case-item[data-case-id="${caseId}"]`);
+        const allCases = Array.from(document.querySelectorAll('.case-item'));
+        const currentIndex = allCases.indexOf(caseItem);
+        
+        const res = await fetch(`/api/cases/${caseId}/copy`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                insert_after: currentIndex  // 현재 위치 바로 다음에 삽입
+            })
+        });
+        
+        if (res.ok) {
+            alert('케이스가 복사되었습니다.');
+            location.reload();
+        } else {
+            alert('복사 실패');
+        }
+    } catch (err) {
+        alert('오류 발생: ' + err);
+    }
+}
+
+// 케이스 상세보기
+let currentCaseId = null;
+
+async function showCaseDetail(caseId) {
+    try {
+        const res = await fetch(`/api/cases/${caseId}`);
+        if (!res.ok) throw new Error('케이스 로드 실패');
+        
+        const caseData = await res.json();
+        currentCaseId = caseId;
+        
+        const modalTitle = document.getElementById('modalCaseTitle');
+        const modalContent = document.getElementById('modalCaseContent');
+        const modal = document.getElementById('caseDetailModal');
+        
+        if (!modalTitle || !modalContent || !modal) {
+            console.error('모달 요소를 찾을 수 없습니다');
+            alert('모달을 열 수 없습니다. 페이지를 새로고침해주세요.');
+            return;
+        }
+        
+        // HTML 이스케이프 함수
+        const escapeHtml = (text) => {
+            if (!text) return '';
+            const map = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'};
+            return String(text).replace(/[&<>"']/g, m => map[m]);
+        };
+        
+        modalTitle.innerHTML = `
+            <div contenteditable="true" id="modalTitle" 
+                 style="display: inline-block; min-width: 300px; border: 1px solid transparent; padding: 0.25rem; border-radius: 4px; outline: none;"
+                 onblur="updateModalField('title', this.textContent.trim())"
+                 onfocus="this.style.border='1px solid #3498db'; this.style.background='#f0f8ff';"
+                 onblur="this.style.border='1px solid transparent'; this.style.background='transparent';">
+${escapeHtml(caseData.title)}</div>
+        `;
+        
+        modalContent.innerHTML = `
+            <div style="margin-bottom: 1rem;">
+                <strong>우선순위:</strong>
+                <select id="modalPriority" class="form-control" style="display: inline-block; width: auto; margin-left: 0.5rem;" 
+                        onchange="updateModalField('priority', this.value)">
+                    <option value="Critical" ${caseData.priority === 'Critical' ? 'selected' : ''}>Critical</option>
+                    <option value="High" ${caseData.priority === 'High' ? 'selected' : ''}>High</option>
+                    <option value="Medium" ${caseData.priority === 'Medium' ? 'selected' : ''}>Medium</option>
+                    <option value="Low" ${caseData.priority === 'Low' ? 'selected' : ''}>Low</option>
+                </select>
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <strong>담당자:</strong> ${escapeHtml(caseData.owner_name) || '없음'}
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <strong>섹션:</strong> ${escapeHtml(caseData.section_name)}
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <strong>태그:</strong> ${caseData.tags.length > 0 ? caseData.tags.map(t => `<span class="tag-badge">${escapeHtml(t)}</span>`).join(' ') : '없음'}
+            </div>
+            <hr>
+            <div style="margin-bottom: 1rem;">
+                <h4>테스트 스텝 <small style="color: #999; font-weight: normal;">💡 클릭하여 편집</small></h4>
+                <div contenteditable="true" id="modalSteps" 
+                     style="white-space: pre-wrap; background: #f9f9f9; padding: 1rem; border-radius: 4px; border: 1px solid transparent; min-height: 100px; outline: none;"
+                     onblur="updateModalField('steps', this.textContent.trim())"
+                     onfocus="this.style.border='1px solid #3498db'; this.style.background='#f0f8ff';"
+                     onblur="this.style.border='1px solid transparent'; this.style.background='#f9f9f9';">${escapeHtml(caseData.steps) || '스텝 정보 없음'}</div>
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <h4>기대 결과 <small style="color: #999; font-weight: normal;">💡 클릭하여 편집</small></h4>
+                <div contenteditable="true" id="modalExpected" 
+                     style="white-space: pre-wrap; background: #f9f9f9; padding: 1rem; border-radius: 4px; border: 1px solid transparent; min-height: 100px; outline: none;"
+                     onblur="updateModalField('expected_result', this.textContent.trim())"
+                     onfocus="this.style.border='1px solid #3498db'; this.style.background='#f0f8ff';"
+                     onblur="this.style.border='1px solid transparent'; this.style.background='#f9f9f9';">${escapeHtml(caseData.expected_result) || '기대 결과 없음'}</div>
+            </div>
+            <hr>
+            <div style="font-size: 0.9rem; color: #666;">
+                <div>생성: ${new Date(caseData.created_at).toLocaleString('ko-KR')}</div>
+                <div>수정: ${new Date(caseData.updated_at).toLocaleString('ko-KR')}</div>
+            </div>
+        `;
+        
+        modal.style.display = 'block';
+    } catch (err) {
+        console.error('케이스 로드 오류:', err);
+        alert('케이스 로드 실패: ' + err.message);
+    }
+}
+
+// 모달 필드 업데이트
+async function updateModalField(field, value) {
+    if (!currentCaseId) return;
+    
+    try {
+        const response = await fetch(`/api/cases/${currentCaseId}`, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ [field]: value })
+        });
+        
+        if (!response.ok) {
+            throw new Error('저장 실패');
+        }
+        
+        console.log('저장 완료:', field, value);
+        
+        // 페이지의 케이스 목록도 업데이트 (새로고침 없이)
+        const caseItem = document.querySelector(`.case-item[data-case-id="${currentCaseId}"]`);
+        if (caseItem && field === 'title') {
+            const titleElement = caseItem.querySelector('.case-title');
+            if (titleElement) titleElement.textContent = value;
+        }
+        
+    } catch (err) {
+        console.error('저장 오류:', err);
+        alert('저장 실패: ' + err.message);
+    }
+}
+
+function closeCaseDetail() {
+    document.getElementById('caseDetailModal').style.display = 'none';
+}
+
+// 모달 외부 클릭 시 닫기
+window.onclick = function(event) {
+    const modal = document.getElementById('caseDetailModal');
+    if (event.target === modal) {
+        closeCaseDetail();
+    }
+}
+
+// 페이지 로드 시 드래그 앤 드롭 초기화
+document.addEventListener('DOMContentLoaded', function() {
+    initCaseSortable();
+});
+</script>
+{% endblock %}
+
+

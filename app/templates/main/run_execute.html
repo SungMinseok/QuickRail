@@ -1,0 +1,1051 @@
+{% extends "base.html" %}
+
+{% block title %}{{ run.name }} - 실행{% endblock %}
+
+{% block extra_css %}
+<style>
+    .run-execute-layout {
+        display: flex;
+        gap: 0;
+        height: calc(100vh - 150px);
+        position: relative;
+    }
+    
+    .run-cases-sidebar {
+        background: white;
+        border-radius: 8px;
+        padding: 1rem;
+        overflow-y: auto;
+        min-width: 300px;
+        max-width: 800px;
+        flex-shrink: 0;
+    }
+    
+    .resizer {
+        width: 5px;
+        background: #e0e0e0;
+        cursor: col-resize;
+        position: relative;
+        flex-shrink: 0;
+        transition: background 0.2s;
+    }
+    
+    .resizer:hover {
+        background: #3498db;
+    }
+    
+    .resizer::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 20px;
+        height: 40px;
+        background: transparent;
+    }
+    
+    .run-case-item {
+        padding: 0.75rem;
+        margin: 0.5rem 0;
+        border-radius: 4px;
+        cursor: pointer;
+        border: 2px solid transparent;
+        transition: all 0.2s;
+    }
+    
+    .run-case-item:hover {
+        background: #f5f5f5;
+    }
+    
+    .run-case-item.active {
+        border-color: #3498db;
+        background: #ebf5fb;
+    }
+    
+    .run-case-item.status-pass {
+        border-left: 4px solid #27ae60;
+    }
+    
+    .run-case-item.status-fail {
+        border-left: 4px solid #e74c3c;
+    }
+    
+    .run-case-item.status-blocked {
+        border-left: 4px solid #95a5a6;
+    }
+    
+    .run-case-item.status-retest {
+        border-left: 4px solid #f39c12;
+    }
+    
+    .run-case-item.status-na {
+        border-left: 4px solid #bdc3c7;
+    }
+    
+    .case-detail-panel {
+        background: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        overflow-y: auto;
+        flex: 1;
+        min-width: 400px;
+    }
+    
+    .status-buttons {
+        display: flex;
+        gap: 1rem;
+        margin: 1.5rem 0;
+        flex-wrap: wrap;
+    }
+    
+    .status-btn {
+        padding: 0.75rem 1.5rem;
+        border: 2px solid;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.2s;
+        background: white;
+    }
+    
+    .status-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    
+    .status-btn.pass {
+        border-color: #27ae60;
+        color: #27ae60;
+    }
+    
+    .status-btn.pass:hover {
+        background: #27ae60;
+        color: white;
+    }
+    
+    .status-btn.fail {
+        border-color: #e74c3c;
+        color: #e74c3c;
+    }
+    
+    .status-btn.fail:hover {
+        background: #e74c3c;
+        color: white;
+    }
+    
+    .status-btn.blocked {
+        border-color: #95a5a6;
+        color: #95a5a6;
+    }
+    
+    .status-btn.blocked:hover {
+        background: #95a5a6;
+        color: white;
+    }
+    
+    .status-btn.retest {
+        border-color: #f39c12;
+        color: #f39c12;
+    }
+    
+    .status-btn.retest:hover {
+        background: #f39c12;
+        color: white;
+    }
+    
+    .status-btn.na {
+        border-color: #bdc3c7;
+        color: #7f8c8d;
+    }
+    
+    .status-btn.na:hover {
+        background: #bdc3c7;
+        color: white;
+    }
+    
+    .comment-section {
+        display: none;
+        margin-top: 1rem;
+    }
+    
+    .comment-section.show {
+        display: block;
+    }
+    
+    .stats-bar {
+        background: white;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        display: flex;
+        justify-content: space-around;
+        text-align: center;
+    }
+    
+    .stat-item {
+        flex: 1;
+    }
+    
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+    }
+    
+    .stat-label {
+        font-size: 0.9rem;
+        color: #666;
+    }
+    
+    .hotkey-hint {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: rgba(0,0,0,0.8);
+        color: white;
+        padding: 1rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        max-width: 250px;
+        z-index: 1000;
+    }
+    
+    .hotkey-hint.hidden {
+        display: none;
+    }
+    
+    @keyframes slideIn {
+        from {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes slideOut {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+    }
+    
+    .refresh-indicator {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        background: rgba(39, 174, 96, 0.9);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        z-index: 999;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    
+    .refresh-indicator.active {
+        animation: pulse 1.5s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 1rem;">
+    <h2>{{ run.name }}</h2>
+    <p style="color: #666;">{{ run.description }}</p>
+</div>
+
+<!-- 실시간 새로고침 인디케이터 -->
+<div class="refresh-indicator active" id="refreshIndicator">
+    🔄 실시간 동기화 중 (5초)
+</div>
+
+<!-- 통계 바 -->
+<div class="stats-bar">
+    <div class="stat-item">
+        <div class="stat-value" id="statProgress" style="color: #3498db;">{{ stats.progress }}%</div>
+        <div class="stat-label">진행률</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-value" id="statExecuted">{{ stats.executed }} / {{ stats.total }}</div>
+        <div class="stat-label">실행</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-value" id="statPass" style="color: #27ae60;">{{ stats.pass }}</div>
+        <div class="stat-label">Pass</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-value" id="statFail" style="color: #e74c3c;">{{ stats.fail }}</div>
+        <div class="stat-label">Fail</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-value" id="statBlocked" style="color: #95a5a6;">{{ stats.blocked }}</div>
+        <div class="stat-label">Blocked</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-value" id="statRetest" style="color: #f39c12;">{{ stats.retest }}</div>
+        <div class="stat-label">Retest</div>
+    </div>
+</div>
+
+<div class="run-execute-layout">
+    <!-- 좌측: RunCase 목록 -->
+    <div class="run-cases-sidebar" id="runCasesSidebar">
+        <h4 style="margin-bottom: 1rem;">케이스 목록</h4>
+        {% for item in run_cases %}
+        <div class="run-case-item {% if item.result %}status-{{ item.result.status }}{% endif %} {% if loop.index0 == 0 %}active{% endif %}" 
+             data-case-id="{{ item.case.id }}"
+             onclick="selectCase({{ loop.index0 }})">
+            <div style="font-weight: 500; margin-bottom: 0.25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" 
+                 title="{{ item.case.title }}">
+                #{{ item.case.id }} {{ item.case.title }}
+            </div>
+            <div style="font-size: 0.85rem; color: #666;">
+                {% if item.result %}
+                    <span style="color: {% if item.result.status == 'pass' %}#27ae60{% elif item.result.status == 'fail' %}#e74c3c{% else %}#95a5a6{% endif %};">
+                        {{ item.result.status|upper }}
+                    </span>
+                {% else %}
+                    <span style="color: #999;">미실행</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- 리사이저 -->
+    <div class="resizer" id="resizer"></div>
+    
+    <!-- 우측: 케이스 상세 + 결과 입력 -->
+    <div class="case-detail-panel" id="caseDetailPanel">
+        <div id="caseContent">
+            <!-- JavaScript로 동적 로드 -->
+        </div>
+    </div>
+</div>
+
+<!-- 핫키 힌트 -->
+<div class="hotkey-hint" id="hotkeyHint">
+    <strong>⌨️ 단축키</strong><br>
+    <kbd>1</kbd> Pass<br>
+    <kbd>2</kbd> Fail<br>
+    <kbd>3</kbd> Blocked<br>
+    <kbd>4</kbd> Retest<br>
+    <kbd>5</kbd> N/A<br>
+    <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid rgba(255,255,255,0.3);">
+    <kbd>n</kbd> 다음 미실행<br>
+    <kbd>p</kbd> 이전 미실행<br>
+    <kbd>j/k</kbd> 다음/이전<br>
+    <kbd>g</kbd> 첫 케이스<br>
+    <kbd>G</kbd> 마지막 케이스<br>
+    <kbd>c</kbd> 코멘트 포커스<br>
+    <kbd>r</kbd> 런 통계 새로고침<br>
+    <kbd>?</kbd> 힌트 토글<br>
+    <kbd>Esc</kbd> 코멘트 닫기
+</div>
+
+<script>
+const runId = {{ run.id }};
+let runCases = {{ run_cases | tojson }};
+let currentIndex = 0;
+let autoRefreshInterval = null;
+let isRefreshing = false;
+
+// 초기 케이스 로드
+window.onload = function() {
+    loadCase(0);
+    startAutoRefresh();
+    initResizer();
+    loadSidebarWidth();
+};
+
+function selectCase(index) {
+    currentIndex = index;
+    loadCase(index);
+    
+    // 사이드바 활성화 표시
+    document.querySelectorAll('.run-case-item').forEach((item, i) => {
+        if (i === index) {
+            item.classList.add('active');
+        } else {
+            item.classList.remove('active');
+        }
+    });
+}
+
+function loadCase(index) {
+    const item = runCases[index];
+    const caseData = item.case;
+    const result = item.result;
+    
+    const html = `
+        <div style="margin-bottom: 1.5rem;">
+            <h3 contenteditable="true" id="caseTitle" 
+                style="border: 1px solid transparent; padding: 0.5rem; border-radius: 4px; outline: none;" 
+                onblur="updateCaseField('title', this.textContent.trim())"
+                onfocus="this.style.border='1px solid #3498db'; this.style.background='#f0f8ff';"
+                onblur="this.style.border='1px solid transparent'; this.style.background='transparent';">
+${escapeHtml(caseData.title)}</h3>
+            <small style="color: #999;">💡 클릭하여 편집 가능</small>
+        </div>
+        
+        <div style="margin: 1rem 0; padding: 1rem; background: #f9f9f9; border-radius: 4px;">
+            <strong>우선순위:</strong> 
+            <select id="casePriority" class="form-control" style="display: inline-block; width: auto; margin-left: 0.5rem;" 
+                    onchange="updateCaseField('priority', this.value)">
+                <option value="P0" ${caseData.priority === 'P0' ? 'selected' : ''}>P0</option>
+                <option value="P1" ${caseData.priority === 'P1' ? 'selected' : ''}>P1</option>
+                <option value="P2" ${caseData.priority === 'P2' ? 'selected' : ''}>P2</option>
+                <option value="P3" ${caseData.priority === 'P3' ? 'selected' : ''}>P3</option>
+            </select>
+        </div>
+        
+        <div style="margin: 1.5rem 0;">
+            <h4>테스트 스텝 <small style="color: #999; font-weight: normal;">💡 클릭하여 편집 가능</small></h4>
+            <div contenteditable="true" id="caseSteps" 
+                 style="white-space: pre-wrap; padding: 1rem; background: #f9f9f9; border-radius: 4px; border: 1px solid transparent; min-height: 100px; outline: none;"
+                 onblur="updateCaseField('steps', this.textContent.trim())"
+                 onfocus="this.style.border='1px solid #3498db'; this.style.background='#f0f8ff';"
+                 onblur="this.style.border='1px solid transparent'; this.style.background='#f9f9f9';">${escapeHtml(caseData.steps) || '스텝 정보 없음'}</div>
+        </div>
+        
+        <div style="margin: 1.5rem 0;">
+            <h4>기대 결과 <small style="color: #999; font-weight: normal;">💡 클릭하여 편집 가능</small></h4>
+            <div contenteditable="true" id="caseExpected" 
+                 style="white-space: pre-wrap; padding: 1rem; background: #f9f9f9; border-radius: 4px; border: 1px solid transparent; min-height: 100px; outline: none;"
+                 onblur="updateCaseField('expected_result', this.textContent.trim())"
+                 onfocus="this.style.border='1px solid #3498db'; this.style.background='#f0f8ff';"
+                 onblur="this.style.border='1px solid transparent'; this.style.background='#f9f9f9';">${escapeHtml(caseData.expected) || '기대 결과 정보 없음'}</div>
+        </div>
+        
+        <hr style="margin: 2rem 0;">
+        
+        <h4>결과 기록</h4>
+        
+        <div class="status-buttons">
+            <button class="status-btn pass" onclick="recordResult('pass')">
+                <kbd>1</kbd> Pass
+            </button>
+            <button class="status-btn fail" onclick="recordResult('fail')">
+                <kbd>2</kbd> Fail
+            </button>
+            <button class="status-btn blocked" onclick="recordResult('blocked')">
+                <kbd>3</kbd> Blocked
+            </button>
+            <button class="status-btn retest" onclick="recordResult('retest')">
+                <kbd>4</kbd> Retest
+            </button>
+            <button class="status-btn na" onclick="recordResult('na')">
+                <kbd>5</kbd> N/A
+            </button>
+        </div>
+        
+        <div class="comment-section" id="commentSection">
+            <label class="form-label">코멘트 ${result && result.status === 'fail' ? '(필수)' : '(선택)'}</label>
+            <textarea id="commentInput" class="form-control" placeholder="결과에 대한 설명을 입력하세요..."></textarea>
+            <button class="btn btn-success" style="margin-top: 0.5rem;" onclick="saveComment()">저장</button>
+        </div>
+        
+        ${result ? `
+            <hr style="margin: 2rem 0;">
+            <h4>현재 상태</h4>
+            <div style="padding: 1rem; background: #e8f5e9; border-radius: 4px; margin: 1rem 0;">
+                <strong>상태:</strong> ${result.status.toUpperCase()}<br>
+                <strong>실행자:</strong> ${result.executor}<br>
+                <strong>시간:</strong> ${new Date(result.created_at).toLocaleString('ko-KR')}<br>
+                ${result.comment ? `<strong>코멘트:</strong> ${result.comment}` : ''}
+            </div>
+        ` : ''}
+    `;
+    
+    document.getElementById('caseContent').innerHTML = html;
+}
+
+let pendingStatus = null;
+
+function recordResult(status) {
+    const caseData = runCases[currentIndex].case;
+    
+    // Fail인 경우 코멘트 입력 영역 표시
+    if (status === 'fail') {
+        const commentSection = document.getElementById('commentSection');
+        commentSection.classList.add('show');
+        document.getElementById('commentInput').focus();
+        pendingStatus = status;
+        return;
+    }
+    
+    // 즉시 저장
+    saveResult(caseData.id, status, '');
+}
+
+function saveComment() {
+    const comment = document.getElementById('commentInput').value;
+    const caseData = runCases[currentIndex].case;
+    
+    if (pendingStatus === 'fail' && !comment.trim()) {
+        alert('Fail 상태는 코멘트가 필수입니다.');
+        return;
+    }
+    
+    saveResult(caseData.id, pendingStatus || 'pass', comment);
+}
+
+function saveResult(caseId, status, comment) {
+    fetch(`/api/runs/${runId}/results`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            case_id: caseId,
+            status: status,
+            comment: comment
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        // 로컬 데이터 업데이트
+        runCases[currentIndex].result = {
+            id: data.id,
+            status: status,
+            comment: comment,
+            executor: '{{ current_user.name }}',
+            created_at: data.created_at
+        };
+        
+        // 사이드바 스타일 업데이트
+        const sidebarItem = document.querySelectorAll('.run-case-item')[currentIndex];
+        sidebarItem.classList.remove('status-pass', 'status-fail', 'status-blocked', 'status-retest', 'status-na');
+        sidebarItem.classList.add(`status-${status}`);
+        sidebarItem.querySelector('span[style*="color"]').style.color = getStatusColor(status);
+        sidebarItem.querySelector('span[style*="color"]').textContent = status.toUpperCase();
+        
+        // 통계 업데이트
+        updateRunStats();
+        
+        // 다음 미실행 케이스로 이동
+        goToNextUnexecuted();
+    })
+    .catch(err => {
+        console.error('결과 저장 오류:', err);
+        alert('결과 저장 실패: ' + err);
+    });
+    
+    pendingStatus = null;
+}
+
+function getStatusColor(status) {
+    const colors = {
+        'pass': '#27ae60',
+        'fail': '#e74c3c',
+        'blocked': '#95a5a6',
+        'retest': '#f39c12',
+        'na': '#95a5a6'
+    };
+    return colors[status] || '#999';
+}
+
+function updateRunStats() {
+    // 통계 재계산
+    let pass = 0, fail = 0, blocked = 0, retest = 0, na = 0, untested = 0;
+    
+    runCases.forEach(rc => {
+        if (rc.result) {
+            switch(rc.result.status) {
+                case 'pass': pass++; break;
+                case 'fail': fail++; break;
+                case 'blocked': blocked++; break;
+                case 'retest': retest++; break;
+                case 'na': na++; break;
+            }
+        } else {
+            untested++;
+        }
+    });
+    
+    const total = runCases.length;
+    const executed = pass + fail + blocked + retest + na;
+    const progress = total > 0 ? Math.round((executed / total) * 100) : 0;
+    
+    // 통계 표시 업데이트
+    document.getElementById('statProgress').textContent = `${progress}%`;
+    document.getElementById('statExecuted').textContent = `${executed} / ${total}`;
+    document.getElementById('statPass').textContent = pass;
+    document.getElementById('statFail').textContent = fail;
+    document.getElementById('statBlocked').textContent = blocked;
+    document.getElementById('statRetest').textContent = retest;
+}
+
+// 자동 새로고침 시작
+function startAutoRefresh() {
+    // 5초마다 자동 새로고침
+    autoRefreshInterval = setInterval(() => {
+        refreshRunData();
+    }, 5000);
+    
+    console.log('자동 새로고침 시작 (5초 간격)');
+}
+
+// 자동 새로고침 중지
+function stopAutoRefresh() {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+        console.log('자동 새로고침 중지');
+    }
+}
+
+// 런 데이터 새로고침
+async function refreshRunData() {
+    if (isRefreshing) return;
+    
+    isRefreshing = true;
+    
+    try {
+        const response = await fetch(`/api/runs/${runId}/cases`);
+        if (!response.ok) throw new Error('데이터 로드 실패');
+        
+        const newData = await response.json();
+        
+        // 변경사항 확인 및 업데이트
+        let hasChanges = false;
+        
+        newData.forEach((newCase, index) => {
+            const oldCase = runCases[index];
+            
+            // 결과 변경 확인
+            const oldResult = oldCase.result;
+            const newResult = newCase.result;
+            
+            if (!oldResult && newResult) {
+                // 새로운 결과 추가됨
+                hasChanges = true;
+                runCases[index].result = newResult;
+                updateSidebarItem(index, newResult.status);
+            } else if (oldResult && newResult && oldResult.status !== newResult.status) {
+                // 결과 상태 변경됨
+                hasChanges = true;
+                runCases[index].result = newResult;
+                updateSidebarItem(index, newResult.status);
+            } else if (oldResult && newResult && oldResult.comment !== newResult.comment) {
+                // 코멘트 변경됨
+                hasChanges = true;
+                runCases[index].result = newResult;
+            }
+        });
+        
+        if (hasChanges) {
+            console.log('변경사항 감지 - UI 업데이트');
+            updateRunStats();
+            
+            // 현재 보고 있는 케이스 새로고침
+            loadCase(currentIndex);
+            
+            // 시각적 피드백
+            showRefreshNotification();
+        }
+        
+    } catch (err) {
+        console.error('자동 새로고침 오류:', err);
+    } finally {
+        isRefreshing = false;
+    }
+}
+
+// 사이드바 아이템 업데이트
+function updateSidebarItem(index, status) {
+    const sidebarItem = document.querySelectorAll('.run-case-item')[index];
+    if (!sidebarItem) return;
+    
+    // 기존 상태 클래스 제거
+    sidebarItem.classList.remove('status-pass', 'status-fail', 'status-blocked', 'status-retest', 'status-na');
+    
+    // 새 상태 클래스 추가
+    if (status) {
+        sidebarItem.classList.add(`status-${status}`);
+        
+        // 상태 텍스트 업데이트
+        const statusSpan = sidebarItem.querySelector('span[style*="color"]');
+        if (statusSpan) {
+            statusSpan.style.color = getStatusColor(status);
+            statusSpan.textContent = status.toUpperCase();
+        }
+    }
+}
+
+// 새로고침 알림 표시
+function showRefreshNotification() {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #27ae60;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        font-size: 14px;
+        animation: slideIn 0.3s ease-out;
+    `;
+    notification.innerHTML = '🔄 실시간 업데이트됨';
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease-out';
+        setTimeout(() => notification.remove(), 300);
+    }, 2000);
+}
+
+// 수동 새로고침
+function manualRefresh() {
+    console.log('수동 새로고침 실행');
+    refreshRunData();
+}
+
+// 페이지 떠날 때 자동 새로고침 중지
+window.addEventListener('beforeunload', () => {
+    stopAutoRefresh();
+});
+
+// ============ 사이드바 리사이저 ============
+
+function initResizer() {
+    const resizer = document.getElementById('resizer');
+    const sidebar = document.getElementById('runCasesSidebar');
+    const detailPanel = document.getElementById('caseDetailPanel');
+    
+    let isResizing = false;
+    let startX = 0;
+    let startWidth = 0;
+    
+    resizer.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        startX = e.clientX;
+        startWidth = sidebar.offsetWidth;
+        
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        
+        e.preventDefault();
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        
+        const deltaX = e.clientX - startX;
+        const newWidth = startWidth + deltaX;
+        
+        // 최소/최대 너비 제한
+        if (newWidth >= 300 && newWidth <= 800) {
+            sidebar.style.width = newWidth + 'px';
+        }
+    });
+    
+    document.addEventListener('mouseup', () => {
+        if (isResizing) {
+            isResizing = false;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            
+            // 너비 저장
+            saveSidebarWidth(sidebar.offsetWidth);
+        }
+    });
+}
+
+function saveSidebarWidth(width) {
+    localStorage.setItem('runExecuteSidebarWidth', width);
+    console.log('사이드바 너비 저장:', width);
+}
+
+function loadSidebarWidth() {
+    const savedWidth = localStorage.getItem('runExecuteSidebarWidth');
+    if (savedWidth) {
+        const sidebar = document.getElementById('runCasesSidebar');
+        sidebar.style.width = savedWidth + 'px';
+        console.log('사이드바 너비 로드:', savedWidth);
+    } else {
+        // 기본값 설정
+        const sidebar = document.getElementById('runCasesSidebar');
+        sidebar.style.width = '450px';  // 기본값을 더 넓게 설정
+    }
+}
+
+function goToNextUnexecuted() {
+    for (let i = currentIndex + 1; i < runCases.length; i++) {
+        if (!runCases[i].result) {
+            selectCase(i);
+            return;
+        }
+    }
+    // 처음부터 다시 검색
+    for (let i = 0; i < currentIndex; i++) {
+        if (!runCases[i].result) {
+            selectCase(i);
+            return;
+        }
+    }
+    alert('모든 케이스가 실행되었습니다!');
+}
+
+function goToPrevUnexecuted() {
+    for (let i = currentIndex - 1; i >= 0; i--) {
+        if (!runCases[i].result) {
+            selectCase(i);
+            return;
+        }
+    }
+    // 뒤에서부터 다시 검색
+    for (let i = runCases.length - 1; i > currentIndex; i--) {
+        if (!runCases[i].result) {
+            selectCase(i);
+            return;
+        }
+    }
+    alert('이전 미실행 케이스가 없습니다.');
+}
+
+function goToFirst() {
+    selectCase(0);
+}
+
+function goToLast() {
+    selectCase(runCases.length - 1);
+}
+
+function focusComment() {
+    const commentSection = document.getElementById('commentSection');
+    const commentInput = document.getElementById('commentInput');
+    
+    if (commentSection && commentInput) {
+        commentSection.classList.add('show');
+        commentInput.focus();
+    }
+}
+
+function closeComment() {
+    const commentSection = document.getElementById('commentSection');
+    if (commentSection) {
+        commentSection.classList.remove('show');
+    }
+}
+
+// 케이스 필드 업데이트
+async function updateCaseField(field, value) {
+    const caseData = runCases[currentIndex].case;
+    const caseId = caseData.id;
+    
+    // 값이 변경되지 않았으면 무시
+    const oldValue = field === 'title' ? caseData.title :
+                     field === 'priority' ? caseData.priority :
+                     field === 'steps' ? caseData.steps :
+                     field === 'expected_result' ? caseData.expected : '';
+    
+    if (value === oldValue) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/cases/${caseId}`, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ [field]: value })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            if (response.status === 404) {
+                alert('⚠️ 원본 테스트 케이스가 삭제되어 변경할 수 없습니다.');
+            } else if (response.status === 409) {
+                alert('⚠️ 원본 테스트 케이스가 다른 사용자에 의해 수정되었습니다. 페이지를 새로고침해주세요.');
+            } else {
+                alert(`변경 실패: ${error.error || '알 수 없는 오류'}`);
+            }
+            // 원래 값으로 복원
+            loadCase(currentIndex);
+            return;
+        }
+        
+        const data = await response.json();
+        
+        // 로컬 데이터 업데이트
+        if (field === 'title') {
+            caseData.title = value;
+        } else if (field === 'priority') {
+            caseData.priority = value;
+        } else if (field === 'steps') {
+            caseData.steps = value;
+        } else if (field === 'expected_result') {
+            caseData.expected = value;
+        }
+        
+        // 시각적 피드백
+        showSaveNotification('✅ 저장 완료');
+        
+        console.log('케이스 업데이트 완료:', field, value);
+        
+    } catch (err) {
+        console.error('케이스 업데이트 오류:', err);
+        alert('⚠️ 네트워크 오류로 변경할 수 없습니다.');
+        // 원래 값으로 복원
+        loadCase(currentIndex);
+    }
+}
+
+// 저장 알림 표시
+function showSaveNotification(message) {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #27ae60;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        font-size: 14px;
+        animation: slideIn 0.3s ease-out;
+    `;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease-out';
+        setTimeout(() => notification.remove(), 300);
+    }, 2000);
+}
+
+
+// HTML 이스케이프 함수
+function escapeHtml(text) {
+    if (!text) return '';
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, m => map[m]);
+}
+
+// 키보드 단축키
+document.addEventListener('keydown', function(e) {
+    // 입력 필드 또는 편집 가능한 요소에서는 일부 단축키만 허용
+    const isInputField = e.target.tagName === 'TEXTAREA' || 
+                        e.target.tagName === 'INPUT' ||
+                        e.target.tagName === 'SELECT' ||
+                        e.target.isContentEditable;
+    
+    // Esc는 항상 작동
+    if (e.key === 'Escape') {
+        if (isInputField) {
+            e.target.blur();
+            closeComment();
+        }
+        return;
+    }
+    
+    // 입력 필드에서는 다른 단축키 무시
+    if (isInputField) {
+        return;
+    }
+    
+    // Shift 키 조합 처리
+    if (e.shiftKey && e.key === 'G') {
+        e.preventDefault();
+        goToLast();
+        return;
+    }
+    
+    switch(e.key) {
+        case '1':
+            e.preventDefault();
+            recordResult('pass');
+            break;
+        case '2':
+            e.preventDefault();
+            recordResult('fail');
+            break;
+        case '3':
+            e.preventDefault();
+            recordResult('blocked');
+            break;
+        case '4':
+            e.preventDefault();
+            recordResult('retest');
+            break;
+        case '5':
+            e.preventDefault();
+            recordResult('na');
+            break;
+        case 'n':
+            e.preventDefault();
+            goToNextUnexecuted();
+            break;
+        case 'p':
+            e.preventDefault();
+            goToPrevUnexecuted();
+            break;
+        case 'j':
+            e.preventDefault();
+            if (currentIndex < runCases.length - 1) {
+                selectCase(currentIndex + 1);
+            }
+            break;
+        case 'k':
+            e.preventDefault();
+            if (currentIndex > 0) {
+                selectCase(currentIndex - 1);
+            }
+            break;
+        case 'g':
+            e.preventDefault();
+            goToFirst();
+            break;
+        case 'c':
+            e.preventDefault();
+            focusComment();
+            break;
+        case 'r':
+            e.preventDefault();
+            manualRefresh();
+            break;
+        case '?':
+            e.preventDefault();
+            const hint = document.getElementById('hotkeyHint');
+            hint.classList.toggle('hidden');
+            break;
+    }
+});
+
+// 힌트 초기 표시 (3초 후 자동 숨김)
+setTimeout(() => {
+    const hint = document.getElementById('hotkeyHint');
+    if (hint) {
+        hint.classList.add('hidden');
+    }
+}, 5000);
+</script>
+{% endblock %}
+
+
