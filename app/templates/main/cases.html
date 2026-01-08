@@ -6,17 +6,34 @@
 {% macro render_sections(sections, current_section_id, current_user, depth) %}
     {% if depth < 4 %}
         {% for section in sections %}
-            <div class="section-wrapper" data-section-id="{{ section.id }}" data-depth="{{ depth }}">
+            <div class="section-wrapper" data-section-id="{{ section.id }}" data-depth="{{ depth }}" data-section-name="{{ section.name }}">
                 <div class="section-item {% if current_section_id == section.id %}active{% endif %}" data-section-id="{{ section.id }}">
-                    <span>{% if depth == 0 %}📂{% elif depth == 1 %}📄{% elif depth == 2 %}📋{% else %}📌{% endif %}</span>
-                    <span class="section-name" onclick="goToSection({{ section.id }})">{{ section.name }}</span>
+                    {% if section.children %}
+                    <span class="section-toggle" onclick="event.stopPropagation(); toggleSection({{ section.id }})" title="접기/펼치기" style="cursor: pointer; display: inline-block; width: 16px; text-align: center; user-select: none;">▼</span>
+                    {% else %}
+                    <span style="display: inline-block; width: 16px;"></span>
+                    {% endif %}
+                    <span onclick="goToSection({{ section.id }})" style="cursor: pointer; flex: 1; display: flex; align-items: center; gap: 0.5rem; min-width: 0;">
+                        <span style="flex-shrink: 0;">{% if depth == 0 %}📂{% elif depth == 1 %}📄{% elif depth == 2 %}📋{% else %}📌{% endif %}</span>
+                        <span class="section-name">{{ section.name }}</span>
+                    </span>
                     {% if current_user.role in ['admin', 'author'] %}
-                    <div class="section-actions">
-                        {% if depth < 3 %}
-                        <button class="section-btn" onclick="event.stopPropagation(); addSection({{ section.id }}, {{ depth + 1 }})" title="하위 섹션 추가">+</button>
+                    <button class="section-menu-trigger" onclick="event.stopPropagation(); toggleSectionMenu({{ section.id }}, event)" title="메뉴">⋮</button>
+                    <div class="section-context-menu" id="section-menu-{{ section.id }}">
+                        {% if depth < 4 %}
+                        <button class="section-context-menu-item" onclick="event.stopPropagation(); addSection({{ section.id }}, {{ depth + 1 }}); closeSectionMenu({{ section.id }})">
+                            <span>➕</span>
+                            <span>하위 섹션 추가</span>
+                        </button>
                         {% endif %}
-                        <button class="section-btn" onclick="event.stopPropagation(); editSection({{ section.id }}, '{{ section.name }}')" title="이름 변경">✏️</button>
-                        <button class="section-btn" onclick="event.stopPropagation(); deleteSection({{ section.id }})" title="삭제">🗑️</button>
+                        <button class="section-context-menu-item" onclick="event.stopPropagation(); editSection({{ section.id }}, '{{ section.name }}'); closeSectionMenu({{ section.id }})">
+                            <span>✏️</span>
+                            <span>이름 변경</span>
+                        </button>
+                        <button class="section-context-menu-item danger" onclick="event.stopPropagation(); deleteSection({{ section.id }}); closeSectionMenu({{ section.id }})">
+                            <span>🗑️</span>
+                            <span>삭제</span>
+                        </button>
                     </div>
                     {% endif %}
                 </div>
@@ -37,19 +54,65 @@
         display: grid;
         grid-template-columns: 300px 1fr;
         gap: 1.5rem;
-        height: calc(100vh - 150px);
+        min-height: calc(100vh - 80px - 4rem); /* 최소 높이 설정 */
+        align-items: start; /* 상단 정렬 */
     }
     
     .section-tree {
         background: white;
         border-radius: 8px;
         padding: 1rem;
+        overflow: hidden; /* 전체 스크롤 방지 */
+        height: calc(100vh - 80px - 4rem); /* 네비게이션 바 높이(80px) + 컨테이너 패딩(4rem) 제외 */
+        position: sticky; /* 스크롤 시 상단 고정 */
+        top: calc(80px + 2rem); /* 네비게이션 바 + 컨테이너 상단 패딩 */
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .section-tree > div:first-child {
+        flex-shrink: 0; /* 헤더 영역은 고정 */
+    }
+    
+    .section-tree > div:nth-child(2) {
+        flex-shrink: 0; /* 검색 및 컨트롤 영역은 고정 */
+    }
+    
+    #sectionTree {
+        flex: 1;
         overflow-y: auto;
+        overflow-x: hidden;
+        min-height: 0; /* Flexbox 제약 해제 */
+        padding-right: 0.5rem; /* 스크롤바 여백 */
+    }
+    
+    /* 스크롤바 스타일링 */
+    #sectionTree::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    #sectionTree::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+    }
+    
+    #sectionTree::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 4px;
+    }
+    
+    #sectionTree::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
+    
+    .section-wrapper {
+        margin: 0;
+        padding: 0;
     }
     
     .section-item {
         padding: 0.5rem 0.75rem;
-        margin: 0.25rem 0;
+        margin: 0;
         border-radius: 4px;
         cursor: move;
         transition: background 0.2s;
@@ -68,6 +131,24 @@
         color: white;
     }
     
+    .section-toggle {
+        font-size: 0.8rem;
+        transition: transform 0.2s;
+        flex-shrink: 0;
+    }
+    
+    .section-wrapper.collapsed > .section-item .section-toggle {
+        transform: rotate(-90deg);
+    }
+    
+    .section-wrapper.collapsed > .section-children {
+        display: none;
+    }
+    
+    .section-wrapper.hidden {
+        display: none;
+    }
+    
     .section-item.sortable-ghost {
         opacity: 0.4;
         background: #e3f2fd;
@@ -79,34 +160,127 @@
     
     .section-children {
         margin-left: 1.5rem;
+        margin-top: 0;
+        margin-bottom: 0;
         padding-left: 0.5rem;
+        padding-top: 0;
+        padding-bottom: 0;
         border-left: 2px solid #e0e0e0;
     }
     
     .section-name {
         flex: 1;
+        cursor: pointer;
+        word-break: break-word; /* 긴 단어 줄바꿈 */
+        line-height: 1.4;
+        min-width: 0;
     }
     
-    .section-actions {
+    /* 컨텍스트 메뉴 버튼 (⋮) */
+    .section-menu-trigger {
         display: none;
-        gap: 0.25rem;
+        width: 24px;
+        height: 24px;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border-radius: 4px;
+        font-size: 1.2rem;
+        line-height: 1;
+        flex-shrink: 0;
+        background: transparent;
+        border: none;
+        padding: 0;
+        color: inherit;
     }
     
-    .section-item:hover .section-actions {
+    .section-item:hover .section-menu-trigger {
         display: flex;
     }
     
+    .section-menu-trigger:hover {
+        background: rgba(0,0,0,0.1);
+    }
+    
+    .section-item.active .section-menu-trigger:hover {
+        background: rgba(255,255,255,0.2);
+    }
+    
+    /* 컨텍스트 메뉴 */
+    .section-context-menu {
+        position: absolute;
+        right: 0;
+        top: 100%;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 1000;
+        min-width: 150px;
+        padding: 0.25rem 0;
+        display: none;
+        margin-top: 2px;
+    }
+    
+    .section-context-menu.show {
+        display: block;
+    }
+    
+    .section-context-menu-item {
+        padding: 0.5rem 1rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+        color: #333;
+        background: white;
+        border: none;
+        width: 100%;
+        text-align: left;
+        transition: background 0.2s;
+    }
+    
+    .section-context-menu-item:hover {
+        background: #f5f5f5;
+    }
+    
+    .section-context-menu-item:active {
+        background: #e8e8e8;
+    }
+    
+    .section-context-menu-item.danger:hover {
+        background: #ffebee;
+        color: #e74c3c;
+    }
+    
+    /* 기존 section-actions 숨김 */
+    .section-actions {
+        display: none !important;
+    }
+    
     .section-btn {
-        padding: 0.25rem 0.5rem;
+        padding: 0.2rem 0.4rem;
         background: transparent;
         border: none;
         cursor: pointer;
         border-radius: 3px;
-        font-size: 0.85rem;
+        font-size: 1rem;
+        line-height: 1;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
     }
     
     .section-btn:hover {
         background: rgba(0,0,0,0.1);
+    }
+    
+    .section-item.active .section-btn:hover {
+        background: rgba(255,255,255,0.2);
     }
     
     .sortable-list {
@@ -134,15 +308,60 @@
         border-radius: 8px;
         padding: 1rem;
         overflow-y: auto;
+        position: relative;
+    }
+    
+    .case-list.loading {
+        opacity: 0.6;
+        pointer-events: none;
+    }
+    
+    .case-list-loading {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+        z-index: 100;
+        background: rgba(255, 255, 255, 0.95);
+        padding: 2rem;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    
+    .case-list.loading .case-list-loading {
+        display: flex;
+    }
+    
+    .case-list-loading-spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #3498db;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    .case-list-loading-text {
+        color: #666;
+        font-size: 0.9rem;
     }
     
     .case-item {
         padding: 1rem;
         border-bottom: 1px solid #eee;
-        transition: background 0.2s;
         display: flex;
         gap: 1rem;
         align-items: start;
+        transition: none; /* 애니메이션 완전히 제거 */
     }
     
     .case-item:hover {
@@ -153,18 +372,410 @@
         border-bottom: none;
     }
     
+    .case-drag-handle {
+        cursor: grab;
+        color: #999;
+        font-size: 0.5em;
+        padding: 0.25rem 0.5rem;
+        display: flex;
+        /* align-items: first baseline; */
+        user-select: none;
+        margin-top: 6px;
+    }
+    
+    .case-drag-handle:active {
+        cursor: grabbing;
+        margin-top: 8px;
+    }
+    
+    .case-checkbox {
+        margin-top: 0.25rem;
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+        margin-top: 8px;
+    }
+    
     .case-content {
+        transition: none; /* 애니메이션 제거 */
         flex: 1;
+    }
+    
+    .case-item.sortable-ghost {
+        opacity: 0.4;
+        background: #e3f2fd;
+    }
+    
+    .case-item.sortable-drag {
+        opacity: 0.8;
+    }
+    
+    .view-toggle {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+    
+    .view-toggle-btn {
+        padding: 0.25rem 0.75rem;
+        background: #f0f0f0;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        transition: none; /* 애니메이션 제거 */
+    }
+    
+    .view-toggle-btn.active {
+        background: #3498db;
+        color: white;
+        border-color: #3498db;
+    }
+    
+    .view-toggle-btn:hover {
+        background: #e0e0e0;
+    }
+    
+    .view-toggle-btn.active:hover {
+        background: #2980b9;
+    }
+    
+    /* 편집 모드 스타일 */
+    .case-list-container.edit-mode {
+        border: 2px solid #3498db;
+        border-radius: 8px;
+    }
+    
+    .case-item.edit-mode-selected {
+        background: #e3f2fd !important;
+        border: 2px solid #2196f3 !important;
+        box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+    }
+    
+    .case-item.edit-mode-selected .case-title {
+        font-weight: 600;
+        color: #1976d2;
+    }
+    
+    .case-list-container.edit-mode .case-item {
+        cursor: default;
+    }
+    
+    /* 편집 모드 단축키 가이드 */
+    #editModeShortcutGuide {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: rgba(0, 0, 0, 0.85);
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        font-size: 0.85rem;
+        z-index: 1000;
+        display: block; /* 편집모드가 아닐 때도 표시 */
+        min-width: 280px;
+        transition: all 0.3s ease;
+    }
+    
+    #editModeShortcutGuide.edit-mode-only {
+        display: none; /* 편집모드가 아닐 때 숨김 (기본값) */
+    }
+    
+    #editModeShortcutGuide.edit-mode-only.show {
+        display: block; /* 편집모드일 때 표시 */
+    }
+    
+    #editModeShortcutGuide:not(.edit-mode-active) .shortcut-item:not(:first-child) {
+        display: none; /* 편집모드가 아닐 때는 첫 번째 항목(토글 키)만 표시 */
+    }
+    
+    #editModeShortcutGuide.edit-mode-active .shortcut-item {
+        display: flex; /* 편집모드일 때는 모든 항목 표시 */
+    }
+    
+    #editModeShortcutGuide.collapsed {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        top: auto;
+        padding: 0.3rem 0.5rem;
+        min-width: auto;
+        width: auto;
+        background: rgba(0, 0, 0, 0.7);
+    }
+    
+    #editModeShortcutGuide.collapsed .shortcut-content {
+        display: none;
+    }
+    
+    #editModeShortcutGuide.collapsed .shortcut-toggle-btn {
+        display: flex;
+    }
+    
+    #editModeShortcutGuide .shortcut-content {
+        display: block;
+    }
+    
+    #editModeShortcutGuide .shortcut-toggle-btn {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        cursor: pointer;
+        border: none;
+        background: transparent;
+        color: white;
+        font-size: 1rem;
+        padding: 0;
+        margin: 0;
+    }
+    
+    #editModeShortcutGuide .shortcut-toggle-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 3px;
+    }
+    
+    #editModeShortcutGuide h4 {
+        margin: 0 0 0.75rem 0;
+        font-size: 0.95rem;
+        color: #3498db;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        padding-bottom: 0.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    #editModeShortcutGuide .shortcut-toggle-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    #editModeShortcutGuide .shortcut-collapse-btn {
+        background: transparent;
+        border: none;
+        color: rgba(255, 255, 255, 0.7);
+        cursor: pointer;
+        font-size: 0.9rem;
+        padding: 0.2rem 0.4rem;
+        border-radius: 3px;
+        transition: all 0.2s;
+    }
+    
+    #editModeShortcutGuide .shortcut-collapse-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+    }
+    
+    #editModeShortcutGuide .shortcut-item {
+        display: flex;
+        justify-content: space-between;
+        margin: 0.4rem 0;
+        line-height: 1.4;
+    }
+    
+    #editModeShortcutGuide .shortcut-key {
+        background: rgba(255, 255, 255, 0.15);
+        padding: 0.15rem 0.5rem;
+        border-radius: 3px;
+        font-family: monospace;
+        font-size: 0.8rem;
+        margin-left: 1rem;
+        white-space: nowrap;
+    }
+    
+    #editModeShortcutGuide .shortcut-desc {
+        flex: 1;
+    }
+    
+    .case-item.compact-view .case-meta {
+        display: none;
+        transition: none !important; /* 애니메이션 제거 */
+    }
+    
+    .case-item.compact-view {
+        transition: none !important; /* 애니메이션 완전히 제거 */
+        padding: 0.5rem 1rem;
+        min-height: auto;
+    }
+    
+    .case-item.compact-view .case-content {
+        transition: none !important; /* 애니메이션 제거 */
+    }
+    
+    .case-item.compact-view .case-title {
+        margin-bottom: 0;
+        font-size: 1rem;
+        transition: none !important; /* 뷰 전환 시 레이아웃 변화 애니메이션 방지 */
+    }
+    
+    /* 모달 스타일 */
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgba(0,0,0,0.5);
+        animation: fadeIn 0.3s;
+    }
+    
+    .modal.show {
+        display: block;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    .modal-content {
+        background-color: #fefefe;
+        margin: 5% auto;
+        padding: 0;
+        border-radius: 8px;
+        width: 80%;
+        max-width: 800px;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        position: relative;
+    }
+    
+    .modal-header {
+        padding: 1.5rem;
+        border-bottom: 1px solid #e0e0e0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .modal-body {
+        padding: 1.5rem;
+        overflow-y: auto;
+        flex: 1;
+    }
+    
+    .close {
+        color: #aaa;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+        border: none;
+        background: none;
+        padding: 0;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .close:hover {
+        color: #000;
+    }
+    
+    .case-item.selected {
+        background: #e8f5e9;
+    }
+    
+    /* 체크박스로 인한 선택이 아닌 경우에만 border-left 표시 */
+    .case-item.selected:not(.checkbox-selected) {
+        border-left: 3px solid #27ae60;
     }
     
     .case-actions {
         display: none;
-        gap: 0.25rem;
         flex-shrink: 0;
+        position: relative;
     }
     
     .case-item:hover .case-actions {
+        display: block;
+    }
+    
+    .case-menu-trigger {
+        display: none;
+        width: 24px;
+        height: 24px;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border-radius: 4px;
+        font-size: 1.2rem;
+        line-height: 1;
+        flex-shrink: 0;
+        background: transparent;
+        border: none;
+        padding: 0;
+        color: inherit;
+    }
+    
+    .case-item:hover .case-menu-trigger {
         display: flex;
+    }
+    
+    .case-menu-trigger:hover {
+        background: rgba(0,0,0,0.1);
+    }
+    
+    /* 케이스 컨텍스트 메뉴 */
+    .case-context-menu {
+        position: absolute;
+        right: 0;
+        top: 100%;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 1000;
+        min-width: 150px;
+        padding: 0.25rem 0;
+        display: none;
+        margin-top: 2px;
+    }
+    
+    .case-context-menu.show {
+        display: block;
+    }
+    
+    .case-context-menu-item {
+        padding: 0.5rem 1rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+        color: #333;
+        background: white;
+        border: none;
+        width: 100%;
+        text-align: left;
+        transition: background 0.2s;
+    }
+    
+    .case-context-menu-item:hover {
+        background: #f5f5f5;
+    }
+    
+    .case-context-menu-item:active {
+        background: #e0e0e0;
+    }
+    
+    .case-context-menu-item.danger {
+        color: #e74c3c;
+    }
+    
+    .case-context-menu-item.danger:hover {
+        background: #fee;
+        color: #c0392b;
     }
     
     .case-action-btn {
@@ -198,12 +809,76 @@
         font-size: 1.1rem;
         font-weight: 500;
         margin-bottom: 0.5rem;
-        cursor: pointer;
+        cursor: default;
+        padding: 0.25rem 0.5rem;
+        border-radius: 3px;
+        /* 'all'은 font-size/margin 등 레이아웃까지 애니메이션되어 뷰 전환 시 흔들림 발생 */
+        transition: color 0.2s, background 0.2s, border-color 0.2s;
+        border: 1px solid transparent;
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    /* contenteditable 포커스 시 브라우저 기본 outline(검은/푸른 테두리) 제거 */
+    .case-title-text[contenteditable="true"] {
+        outline: none !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+    .case-title-text[contenteditable="true"]:focus {
+        outline: none !important;
+        border: none !important;
+        box-shadow: none !important;
     }
     
     .case-title:hover {
         color: #3498db;
+        background: #f0f8ff;
     }
+    
+    /* 연필 아이콘 제거됨 */
+    
+    /* 호버 시 편집 안내 텍스트 */
+    .case-title-edit-hint {
+        display: none;
+        color: #3498db;
+        font-size: 0.85rem;
+        margin-left: auto;
+        margin-right: 0.5rem;
+        user-select: none;
+    }
+    
+    .case-title:hover .case-title-edit-hint {
+        display: inline-block;
+    }
+    
+    .case-title.editing .case-title-edit-hint {
+        display: none;
+    }
+    
+    .case-title.editing {
+        background: #fff;
+        border: 2px solid #3498db;
+        outline: none;
+        cursor: text;
+        padding: 0.25rem 0.5rem;
+        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+    }
+    
+    /* 체크박스로 인한 선택이 아닌 경우에만 스타일 적용 */
+    .case-item.selected:not(.checkbox-selected) .case-title {
+        background: #e8f5e9;
+        font-weight: 600;
+        border-color: #27ae60;
+    }
+    
+    .case-item.selected:not(.checkbox-selected) .case-title:hover {
+        background: #c8e6c9;
+        border-color: #27ae60;
+    }
+    
     
     .case-meta {
         display: flex;
@@ -221,9 +896,26 @@
     }
     
     .priority-P0 { background: #e74c3c; color: white; }
-    .priority-P1 { background: #e67e22; color: white; }
-    .priority-P2 { background: #f39c12; color: white; }
-    .priority-P3 { background: #95a5a6; color: white; }
+    .priority-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.5rem;
+        border-radius: 3px;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+    
+    .priority-badge svg {
+        width: 16px;
+        height: 16px;
+        margin-right: 0.25rem;
+    }
+    
+    .priority-Blocker { background: #ffebe6; color: #bf2600; border: 1px solid #ff5630; }
+    .priority-Critical { background: #ffebe6; color: #bf2600; border: 1px solid #ff5630; }
+    .priority-High { background: #ffebe6; color: #bf2600; border: 1px solid #ff5630; }
+    .priority-Medium { background: #fff4e6; color: #974f0c; border: 1px solid #ff991f; }
+    .priority-Low { background: #deebff; color: #0747a6; border: 1px solid #4c9aff; }
     
     .tag-badge {
         padding: 0.25rem 0.5rem;
@@ -242,14 +934,6 @@
 {% endblock %}
 
 {% block content %}
-<div style="margin-bottom: 1rem;">
-    <h2>{{ project.name }}</h2>
-    <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
-        <a href="{{ url_for('main.cases', project_id=project.id) }}" class="btn btn-primary">케이스</a>
-        <a href="{{ url_for('main.runs', project_id=project.id) }}" class="btn btn-secondary">런</a>
-        <a href="{{ url_for('main.dashboard', project_id=project.id) }}" class="btn btn-secondary">리포트</a>
-    </div>
-</div>
 
 <div class="two-pane-layout">
     <!-- 좌측: Section 트리 -->
@@ -261,10 +945,26 @@
             {% endif %}
         </div>
         
-        <div class="section-item {% if not current_section_id %}active{% endif %}" onclick="goToSection(null)" style="cursor: pointer;">
+        <!-- 섹션 검색 및 컨트롤 -->
+        <div style="padding: 0.5rem 1rem;">
+            <input type="text" id="sectionSearchInput" class="form-control" placeholder="🔍 섹션 검색..." 
+                   oninput="filterSectionTree(this.value)" 
+                   style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem; margin-bottom: 0.5rem;">
+            <div style="display: flex; gap: 0.5rem;">
+                <button onclick="expandAllSections()" class="btn btn-secondary" style="flex: 1; padding: 0.4rem; font-size: 0.85rem;">
+                    ▼ 모두 펼치기
+                </button>
+                <button onclick="collapseAllSections()" class="btn btn-secondary" style="flex: 1; padding: 0.4rem; font-size: 0.85rem;">
+                    ▶ 모두 접기
+                </button>
+            </div>
+        </div>
+        
+        <!-- 전체 케이스 섹션 숨김 -->
+        <!-- <div class="section-item {% if not current_section_id %}active{% endif %}" onclick="goToSection(null)" style="cursor: pointer;">
             <span>📁</span>
             <span class="section-name">전체 케이스</span>
-        </div>
+        </div> -->
         
         <div id="sectionTree" class="sortable-list">
             {{ render_sections(sections, current_section_id, current_user, 0) }}
@@ -280,6 +980,7 @@
             
             <select class="form-control" style="max-width: 150px;" onchange="filterCases()">
                 <option value="">모든 우선순위</option>
+                <option value="Blocker" {% if priority=='Blocker' %}selected{% endif %}>Blocker</option>
                 <option value="Critical" {% if priority=='Critical' %}selected{% endif %}>Critical</option>
                 <option value="High" {% if priority=='High' %}selected{% endif %}>High</option>
                 <option value="Medium" {% if priority=='Medium' %}selected{% endif %}>Medium</option>
@@ -299,11 +1000,12 @@
         <div class="card">
             <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
                 <button type="button" class="btn btn-secondary" style="padding: 0.5rem 1rem;" onclick="toggleBulkAdd()">📝 여러 개 추가</button>
+                <button type="button" class="btn btn-primary" style="padding: 0.5rem 1rem;" onclick="openImportModal()">📥 Import (CSV/Excel)</button>
             </div>
             <form class="quick-add-form" id="singleAddForm" onsubmit="quickAddCase(event)">
                 <input type="text" id="quickAddTitle" placeholder="케이스 제목 입력 후 Enter..." class="form-control" required 
                        oninput="checkDuplicates(this.value)">
-                <button type="submit" class="btn btn-success">추가</button>
+                <button type="submit" class="btn btn-success" style="width: 100px;">추가</button> 
             </form>
             <form id="bulkAddForm" style="display: none;" onsubmit="bulkAddCases(event)">
                 <textarea id="bulkAddText" class="form-control" placeholder="케이스 제목들을 개행(엔터)으로 구분하여 입력하세요..." 
@@ -321,56 +1023,208 @@
         {% endif %}
         
         <!-- Case 리스트 -->
-        <div class="case-list">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <h3>케이스 ({{ cases|length }})</h3>
-                <select class="form-control" style="width: auto;" onchange="changeSort(this.value)">
-                    <option value="default" {% if current_sort == 'default' or not current_sort %}selected{% endif %}>기본</option>
-                    <option value="recent" {% if current_sort == 'recent' %}selected{% endif %}>최근순</option>
-                    <option value="oldest" {% if current_sort == 'oldest' %}selected{% endif %}>오래된 순</option>
-                    <option value="title" {% if current_sort == 'title' %}selected{% endif %}>제목순</option>
-                    <option value="priority" {% if current_sort == 'priority' %}selected{% endif %}>우선순위</option>
-                </select>
+        <div class="case-list" id="caseList">
+            <div class="case-list-loading">
+                <div class="case-list-loading-spinner"></div>
+                <div class="case-list-loading-text">케이스 로딩 중...</div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <h3 style="margin: 0;">케이스 ({{ cases|length }})</h3>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem;">
+                        <input type="checkbox" id="selectAllCases" onchange="toggleSelectAll(this.checked)" style="width: 18px; height: 18px; cursor: pointer;">
+                        <span>전체 선택</span>
+                    </label>
+                    {% if current_user.role in ['admin', 'author'] %}
+                    <button class="btn btn-danger" id="deleteSelectedBtn" onclick="deleteSelectedCases()" style="padding: 0.25rem 0.75rem; font-size: 0.85rem; display: none;">
+                        선택 삭제
+                    </button>
+                    <div style="display: none; align-items: center; gap: 0.5rem;" id="bulkPriorityContainer">
+                        <label style="font-size: 0.85rem; margin: 0;">우선순위 일괄변경:</label>
+                        <select id="bulkPrioritySelect" style="padding: 0.25rem 0.5rem; font-size: 0.85rem; border: 1px solid #ddd; border-radius: 4px;">
+                            <option value="">선택...</option>
+                            <option value="Blocker">Blocker</option>
+                            <option value="Critical">Critical</option>
+                            <option value="High">High</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Low">Low</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="bulkChangePriority()" style="padding: 0.25rem 0.75rem; font-size: 0.85rem;">
+                            적용
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    {% if current_section_id %}
+                    <button class="btn btn-primary" onclick="exportSectionCasesCSV()" style="padding: 0.25rem 0.75rem; font-size: 0.85rem;">
+                        내보내기
+                    </button>
+                    {% endif %}
+                    <div class="view-toggle">
+                        <button class="view-toggle-btn" id="editModeToggle" onclick="toggleEditMode()">
+                            편집
+                        </button>
+                        <button class="view-toggle-btn" id="viewToggleBtn" onclick="toggleViewMode()" title="간편보기/상세보기 토글">
+                            <span id="viewToggleIcon">📄</span>
+                        </button>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-left: 1rem;">
+                        <span style="font-size: 0.9rem;">🌐</span>
+                        <select id="languageSelect" onchange="changeLanguage(this.value)" style="padding: 0.25rem 0.5rem; font-size: 0.85rem; border: 1px solid #ddd; border-radius: 4px;">
+                            <option value="original" selected>원본</option>
+                            <option value="ko">한국어</option>
+                            <option value="en">English</option>
+                        </select>
+                        <button id="retranslateBtn" class="btn btn-secondary" type="button"
+                                onclick="retranslateCurrentLanguage()"
+                                title="현재 언어로 재번역 (기존 번역 캐시 무시)"
+                                style="padding: 0.25rem 0.75rem; font-size: 0.85rem; display: none;">
+                            🔄 재번역
+                        </button>
+                    </div>
+                </div>
             </div>
             
             <div id="caseListSortable">
-            {% for case in cases %}
-            <div class="case-item" data-case-id="{{ case.id }}">
-                <div class="case-content" onclick="showCaseDetail({{ case.id }})" style="cursor: pointer; flex: 1;">
-                    <div class="case-title">{{ case.title }}</div>
-                    <div class="case-meta">
-                        <span class="priority-badge priority-{{ case.priority }}">{{ case.priority }}</span>
-                        {% if case.owner %}
-                        <span>👤 {{ case.owner.name }}</span>
-                        {% endif %}
-                        {% for tag in case.tags %}
-                        <span class="tag-badge">{{ tag.name }}</span>
-                        {% endfor %}
-                        <span>🕐 {{ case.updated_at.strftime('%Y-%m-%d %H:%M') }}</span>
-                        <span style="font-size: 0.85rem; color: #999;">
-                            {% if case.creator %}
-                            | 생성: {{ case.creator.name }}
-                            {% endif %}
-                            {% if case.updater and case.updated_at != case.created_at %}
-                            | 수정: {{ case.updater.name }}
-                            {% endif %}
-                        </span>
-                    </div>
+            {% if cases_by_section and cases_by_section|length > 0 %}
+                {# 섹션별로 그룹화하여 표시 #}
+                {% for section_id, section_data in cases_by_section.items() %}
+                <div class="section-group-header" data-section-id="{{ section_id }}" style="padding: 0.75rem 1rem; background: #f5f5f5; border-left: 3px solid #3498db; margin: 1rem 0 0.5rem 0; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 0.75rem;" onclick="goToSection({{ section_id }})">
+                    <input type="checkbox"
+                           class="section-select-checkbox"
+                           data-section-id="{{ section_id }}"
+                           onclick="event.stopPropagation()"
+                           onchange="toggleSectionCasesSelection({{ section_id }}, this, event)"
+                           style="width: 18px; height: 18px; cursor: pointer;">
+                    <span style="flex: 1;">📁 {{ section_data.section.get_full_path() }} ({{ section_data.cases|length }})</span>
                 </div>
-                {% if current_user.role in ['admin', 'author'] %}
-                <div class="case-actions">
-                    <button class="case-action-btn edit" onclick="event.stopPropagation(); editCase({{ case.id }}, '{{ case.title }}')" title="편집">✏️</button>
-                    <button class="case-action-btn" onclick="event.stopPropagation(); copyCase({{ case.id }})" title="복사" style="border-color: #9b59b6; color: #9b59b6;">📋</button>
-                    <button class="case-action-btn delete" onclick="event.stopPropagation(); deleteCase({{ case.id }})" title="삭제">🗑️</button>
+                {% for case in section_data.cases %}
+                <div class="case-item" data-case-id="{{ case.id }}" data-section-id="{{ case.section_id }}" data-order-index="{{ case.order_index }}">
+                    <div class="case-drag-handle" title="드래그하여 순서 변경">☰</div>
+                    <input type="checkbox" class="case-checkbox" data-case-id="{{ case.id }}" data-case-index="{{ loop.index0 }}" onchange="handleCheckboxChange(this, event)" onclick="event.stopPropagation()">
+                    <div class="case-content" onclick="selectCase({{ case.id }}, event)" style="cursor: pointer; flex: 1;">
+                        <div class="case-title" id="case-title-{{ case.id }}" data-case-id="{{ case.id }}" contenteditable="false" onclick="handleCaseTitleClick({{ case.id }}, event)">
+                            <span class="case-title-text">{{ case.title }}</span>
+                            <span class="case-title-edit-hint">클릭하여 편집</span>
+                        </div>
+                        <div class="case-meta">
+                            <span class="priority-badge priority-{{ case.priority }}">
+                                {% if case.priority == 'Blocker' %}
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 15c-3.9 0-7-3.1-7-7s3.1-7 7-7 7 3.1 7 7-3.1 7-7 7zM4 7c-.6 0-1 .4-1 1s.4 1 1 1h8c.6 0 1-.4 1-1s-.4-1-1-1H4z" fill="#ff5630"/></svg>
+                                {% elif case.priority == 'Critical' %}
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><linearGradient id="grad-critical-{{ case.id }}" gradientUnits="userSpaceOnUse" x1="-46.25" y1="65.1105" x2="-46.25" y2="64.1105" gradientTransform="matrix(12 0 0 -13.1121 563 854.7415)"><stop offset="0" stop-color="#ff5630"/><stop offset="1" stop-color="#ff8f73"/></linearGradient><path d="M2.5 4l5-2.9c.3-.2.7-.2 1 0l5 2.9c.3.2.5.5.5.9v8.2c0 .6-.4 1-1 1-.2 0-.4 0-.5-.1L8 11.4 3.5 14c-.5.3-1.1.1-1.4-.4-.1-.1-.1-.3-.1-.5V4.9c0-.4.2-.7.5-.9z" fill="url(#grad-critical-{{ case.id }})"/></svg>
+                                {% elif case.priority == 'High' %}
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M7.984436 3.200867l-4.5 2.7c-.5.3-1.1.1-1.3-.4s-.2-1.1.3-1.3l5-3c.3-.2.7-.2 1 0l5 3c.5.3.6.9.3 1.4-.3.5-.9.6-1.4.3l-4.4-2.7z" fill="#ff5630"/><path d="M3.484436 10.200867c-.5.3-1.1.1-1.3-.3s-.2-1.1.3-1.4l5-3c.3-.2.7-.2 1 0l5 3c.5.3.6.9.3 1.4-.3.5-.9.6-1.4.3l-4.4-2.7-4.5 2.7z" fill="#ff7452"/><path d="M3.484436 14.500867c-.5.3-1.1.2-1.3-.3s-.2-1.1.3-1.4l5-3c.3-.2.7-.2 1 0l5 3c.5.3.6.9.3 1.4-.3.5-.9.6-1.4.3l-4.4-2.7-4.5 2.7z" fill="#ff8f73"/></svg>
+                                {% elif case.priority == 'Medium' %}
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M14 6.5L2 6.5L2 5L14 5L14 6.5ZM14 11L2 11L2 9.5L14 9.5L14 11Z" fill="#E06C00"/></svg>
+                                {% elif case.priority == 'Low' %}
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M7.5874 10.8762L2.0874 7.25122L2.91287 5.99878L8.00014 9.35175L13.0874 5.99878L13.9129 7.25122L8.41287 10.8762C8.16246 11.0413 7.83781 11.0413 7.5874 10.8762Z" fill="#4688EC"/></svg>
+                                {% endif %}
+                            </span>
+                            {% if case.owner %}
+                            <span>👤 {{ case.owner.name }}</span>
+                            {% endif %}
+                            {% for tag in case.tags %}
+                            <span class="tag-badge">{{ tag.name }}</span>
+                            {% endfor %}
+                            <span style="font-size: 0.85rem; color: #666;">📅 생성: {{ case.created_at.strftime('%Y-%m-%d %H:%M') }}{% if case.creator %} ({{ case.creator.name }}){% endif %}</span>
+                            <span style="font-size: 0.85rem; color: #666;">🕐 수정: {{ case.updated_at.strftime('%Y-%m-%d %H:%M') }}{% if case.updater %} ({{ case.updater.name }}){% endif %}</span>
+                        </div>
+                    </div>
+                    {% if current_user.role in ['admin', 'author'] %}
+                    <div class="case-actions">
+                        <button class="case-menu-trigger" onclick="event.stopPropagation(); toggleCaseMenu({{ case.id }}, event)" title="메뉴">⋮</button>
+                        <div class="case-context-menu" id="case-menu-{{ case.id }}">
+                            <button class="case-context-menu-item" onclick="event.stopPropagation(); showCaseDetail({{ case.id }}); closeCaseMenu({{ case.id }})">
+                                <span>✏️</span>
+                                <span>편집</span>
+                            </button>
+                            <button class="case-context-menu-item" onclick="event.stopPropagation(); copyCase({{ case.id }}); closeCaseMenu({{ case.id }})">
+                                <span>📋</span>
+                                <span>복제</span>
+                            </button>
+                            <button class="case-context-menu-item danger" onclick="event.stopPropagation(); deleteCase({{ case.id }}); closeCaseMenu({{ case.id }})">
+                                <span>🗑️</span>
+                                <span>삭제</span>
+                            </button>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                {% endfor %}
+            {% else %}
+                {# 전체 케이스 또는 단일 섹션 케이스 표시 #}
+                {% if cases %}
+                {% for case in cases %}
+                <div class="case-item" data-case-id="{{ case.id }}" data-section-id="{{ case.section_id }}" data-order-index="{{ case.order_index }}">
+                    <div class="case-drag-handle" title="드래그하여 순서 변경">☰</div>
+                    <input type="checkbox" class="case-checkbox" data-case-id="{{ case.id }}" data-case-index="{{ loop.index0 }}" onchange="handleCheckboxChange(this, event)" onclick="event.stopPropagation()">
+                    <div class="case-content" onclick="selectCase({{ case.id }}, event)" style="cursor: pointer; flex: 1;">
+                        <div class="case-title" id="case-title-{{ case.id }}" data-case-id="{{ case.id }}" contenteditable="false" onclick="handleCaseTitleClick({{ case.id }}, event)">
+                            <span class="case-title-text">{{ case.title }}</span>
+                            <span class="case-title-edit-hint">클릭하여 편집</span>
+                        </div>
+                        <div class="case-meta">
+                            <span class="priority-badge priority-{{ case.priority }}">
+                                {% if case.priority == 'Blocker' %}
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 15c-3.9 0-7-3.1-7-7s3.1-7 7-7 7 3.1 7 7-3.1 7-7 7zM4 7c-.6 0-1 .4-1 1s.4 1 1 1h8c.6 0 1-.4 1-1s-.4-1-1-1H4z" fill="#ff5630"/></svg>
+                                {% elif case.priority == 'Critical' %}
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><linearGradient id="grad-critical-{{ case.id }}" gradientUnits="userSpaceOnUse" x1="-46.25" y1="65.1105" x2="-46.25" y2="64.1105" gradientTransform="matrix(12 0 0 -13.1121 563 854.7415)"><stop offset="0" stop-color="#ff5630"/><stop offset="1" stop-color="#ff8f73"/></linearGradient><path d="M2.5 4l5-2.9c.3-.2.7-.2 1 0l5 2.9c.3.2.5.5.5.9v8.2c0 .6-.4 1-1 1-.2 0-.4 0-.5-.1L8 11.4 3.5 14c-.5.3-1.1.1-1.4-.4-.1-.1-.1-.3-.1-.5V4.9c0-.4.2-.7.5-.9z" fill="url(#grad-critical-{{ case.id }})"/></svg>
+                                {% elif case.priority == 'High' %}
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M7.984436 3.200867l-4.5 2.7c-.5.3-1.1.1-1.3-.4s-.2-1.1.3-1.3l5-3c.3-.2.7-.2 1 0l5 3c.5.3.6.9.3 1.4-.3.5-.9.6-1.4.3l-4.4-2.7z" fill="#ff5630"/><path d="M3.484436 10.200867c-.5.3-1.1.1-1.3-.3s-.2-1.1.3-1.4l5-3c.3-.2.7-.2 1 0l5 3c.5.3.6.9.3 1.4-.3.5-.9.6-1.4.3l-4.4-2.7-4.5 2.7z" fill="#ff7452"/><path d="M3.484436 14.500867c-.5.3-1.1.2-1.3-.3s-.2-1.1.3-1.4l5-3c.3-.2.7-.2 1 0l5 3c.5.3.6.9.3 1.4-.3.5-.9.6-1.4.3l-4.4-2.7-4.5 2.7z" fill="#ff8f73"/></svg>
+                                {% elif case.priority == 'Medium' %}
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M14 6.5L2 6.5L2 5L14 5L14 6.5ZM14 11L2 11L2 9.5L14 9.5L14 11Z" fill="#E06C00"/></svg>
+                                {% elif case.priority == 'Low' %}
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M7.5874 10.8762L2.0874 7.25122L2.91287 5.99878L8.00014 9.35175L13.0874 5.99878L13.9129 7.25122L8.41287 10.8762C8.16246 11.0413 7.83781 11.0413 7.5874 10.8762Z" fill="#4688EC"/></svg>
+                                {% endif %}
+                            </span>
+                            {% if case.owner %}
+                            <span>👤 {{ case.owner.name }}</span>
+                            {% endif %}
+                            {% for tag in case.tags %}
+                            <span class="tag-badge">{{ tag.name }}</span>
+                            {% endfor %}
+                            <span style="font-size: 0.85rem; color: #666;">📅 생성: {{ case.created_at.strftime('%Y-%m-%d %H:%M') }}{% if case.creator %} ({{ case.creator.name }}){% endif %}</span>
+                            <span style="font-size: 0.85rem; color: #666;">🕐 수정: {{ case.updated_at.strftime('%Y-%m-%d %H:%M') }}{% if case.updater %} ({{ case.updater.name }}){% endif %}</span>
+                        </div>
+                    </div>
+                    {% if current_user.role in ['admin', 'author'] %}
+                    <div class="case-actions">
+                        <button class="case-menu-trigger" onclick="event.stopPropagation(); toggleCaseMenu({{ case.id }}, event)" title="메뉴">⋮</button>
+                        <div class="case-context-menu" id="case-menu-{{ case.id }}">
+                            <button class="case-context-menu-item" onclick="event.stopPropagation(); showCaseDetail({{ case.id }}); closeCaseMenu({{ case.id }})">
+                                <span>✏️</span>
+                                <span>편집</span>
+                            </button>
+                            <button class="case-context-menu-item" onclick="event.stopPropagation(); copyCase({{ case.id }}); closeCaseMenu({{ case.id }})">
+                                <span>📋</span>
+                                <span>복제</span>
+                            </button>
+                            <button class="case-context-menu-item danger" onclick="event.stopPropagation(); deleteCase({{ case.id }}); closeCaseMenu({{ case.id }})">
+                                <span>🗑️</span>
+                                <span>삭제</span>
+                            </button>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                {% else %}
+                {# 케이스가 없을 때 안내 메시지 #}
+                <div style="text-align: center; padding: 3rem; color: #999;">
+                    케이스가 없습니다. Quick Add로 빠르게 추가해보세요!
                 </div>
                 {% endif %}
-            </div>
-            {% endfor %}
+            {% endif %}
             </div>
             
-            {% if not cases %}
-            <div style="text-align: center; padding: 3rem; color: #999;">
-                케이스가 없습니다. Quick Add로 빠르게 추가해보세요!
+            {% if not current_section_id %}
+            <div style="text-align: center; padding: 4rem 2rem; color: #999;">
+                <div style="font-size: 4rem; margin-bottom: 1rem;">📋</div>
+                <h3 style="color: #666; margin-bottom: 0.5rem;">섹션을 선택해주세요</h3>
+                <p style="font-size: 0.9rem;">왼쪽 섹션 트리에서 섹션을 선택하면 케이스 목록이 표시됩니다.</p>
             </div>
             {% endif %}
         </div>
@@ -378,14 +1232,258 @@
 </div>
 
 <!-- 케이스 상세보기 모달 -->
-<div id="caseDetailModal" class="modal" style="display: none;">
-    <div class="modal-content" style="max-width: 800px;">
+<div id="caseDetailModal" class="modal">
+    <div class="modal-content">
         <div class="modal-header">
             <h3 id="modalCaseTitle">케이스 상세</h3>
-            <button class="close" onclick="closeCaseDetail()">&times;</button>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <button class="close" onclick="closeCaseDetail()" style="margin-left: auto;">&times;</button>
+            </div>
         </div>
         <div class="modal-body" id="modalCaseContent">
             <!-- JavaScript로 동적 로드 -->
+        </div>
+    </div>
+</div>
+
+<!-- 커스텀 Alert 모달 -->
+<div id="customAlertModal" class="modal" style="display: none; z-index: 2000;">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3 id="customAlertTitle">알림</h3>
+            <button class="close" onclick="closeCustomAlert()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="customAlertMessage" style="white-space: pre-wrap; word-break: break-word; user-select: text; cursor: text; padding: 1rem; background: #f8f9fa; border-radius: 4px; font-family: monospace; font-size: 0.9rem; max-height: 400px; overflow-y: auto;">
+                <!-- JavaScript로 채워짐 -->
+            </div>
+            <div style="margin-top: 1rem; text-align: right;">
+                <button class="btn btn-primary" onclick="closeCustomAlert()">확인</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 섹션 선택 모달 (Import용) -->
+<div id="rootSectionSelectorModal" class="modal" style="display: none; z-index: 1100;">
+    <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-header">
+            <h3>📂 최상위 섹션 선택</h3>
+            <button class="close" onclick="closeRootSectionSelector()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="margin-bottom: 1rem;">
+                <input type="text" id="sectionSearchInput" class="form-control" placeholder="섹션 검색..." oninput="filterSections()">
+            </div>
+            <div id="rootSectionList" style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 0.5rem;">
+                <!-- JavaScript로 채워짐 -->
+            </div>
+            <div style="margin-top: 1rem; text-align: right;">
+                <button class="btn btn-secondary" onclick="closeRootSectionSelector()">취소</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import 모달 -->
+<div id="importModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 900px;">
+        <div class="modal-header">
+            <h3>📥 케이스 Import (CSV/Excel)</h3>
+            <button class="close" onclick="closeImportModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <!-- Step 1: 파일 업로드 -->
+            <div id="importStep1" style="display: block;">
+                <h4 style="margin-bottom: 1rem;">1. 파일 선택</h4>
+                <div id="dropZone" style="border: 2px dashed #3498db; border-radius: 8px; padding: 3rem; text-align: center; background: #f8f9fa; cursor: pointer; transition: all 0.3s;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">📁</div>
+                    <p style="font-size: 1.1rem; margin-bottom: 0.5rem;">파일을 드래그 앤 드롭하거나 클릭하여 선택</p>
+                    <p style="color: #666; font-size: 0.9rem;">지원 형식: CSV, Excel (.xlsx, .xls)</p>
+                    <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display: none;">
+                </div>
+                <div id="fileInfo" style="display: none; margin-top: 1rem; padding: 1rem; background: #e8f5e9; border-radius: 4px;">
+                    <strong>선택된 파일:</strong> <span id="fileName"></span>
+                </div>
+                
+                <div style="margin-top: 2rem; padding: 1rem; background: #e3f2fd; border-radius: 4px;">
+                    <strong>📋 파일 형식 안내:</strong>
+                    <ul style="margin: 0.5rem 0 0 1.5rem; font-size: 0.9rem;">
+                        <li>첫 번째 행은 컬럼명으로 사용됩니다</li>
+                        <li>다음 단계에서 컬럼을 매핑할 수 있습니다</li>
+                        <li>섹션 정보가 있으면 자동으로 생성됩니다 (최대 depth 4)</li>
+                        <li>빈 제목은 자동으로 건너뜁니다</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Step 2: 컬럼 매핑 -->
+            <div id="importStep2" style="display: none;">
+                <h4 style="margin-bottom: 1rem;">2. 컬럼 매핑 및 최상위 섹션 선택</h4>
+                
+                <div style="margin-bottom: 1rem; padding: 1rem; background: #fff3cd; border-left: 3px solid #ffc107; border-radius: 4px;">
+                    <strong>⚠️ 안내:</strong> 파일의 컬럼을 QuickRail 필드에 매핑해주세요. 제목(Title)은 필수입니다.
+                </div>
+                
+                <!-- 최상위 섹션 선택 -->
+                <div style="margin-bottom: 1.5rem; padding: 1rem; background: #e3f2fd; border-radius: 4px;">
+                    <label class="form-label"><strong>📂 최상위 섹션 선택 (선택사항)</strong></label>
+                    <p style="font-size: 0.9rem; color: #666; margin: 0.5rem 0;">Import할 케이스들이 배치될 최상위 섹션을 선택하세요. 선택하지 않으면 파일의 섹션 정보가 최상위가 됩니다.</p>
+                    <div style="display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem;">
+                        <input type="text" id="selectedRootSectionName" class="form-control" readonly placeholder="선택된 섹션 없음" style="flex: 1; background: white; cursor: pointer;" onclick="openRootSectionSelector()">
+                        <button type="button" class="btn btn-secondary" onclick="openRootSectionSelector()">섹션 선택</button>
+                        <button type="button" class="btn btn-secondary" onclick="clearRootSection()" style="padding: 0.5rem 1rem;">✕</button>
+                    </div>
+                    <input type="hidden" id="selectedRootSectionId" value="">
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                    <!-- 제목 (필수) -->
+                    <div>
+                        <label class="form-label"><strong style="color: #e74c3c;">* 제목 (Title)</strong></label>
+                        <select id="mapTitle" class="form-control" required>
+                            <option value="">-- 컬럼 선택 --</option>
+                        </select>
+                    </div>
+                    
+                    <!-- 우선순위 -->
+                    <div>
+                        <label class="form-label">우선순위 (Priority)</label>
+                        <select id="mapPriority" class="form-control">
+                            <option value="">-- 컬럼 선택 (선택사항) --</option>
+                        </select>
+                    </div>
+                    
+                    <!-- 테스트 스텝 -->
+                    <div>
+                        <label class="form-label">테스트 스텝 (Steps)</label>
+                        <select id="mapSteps" class="form-control">
+                            <option value="">-- 컬럼 선택 (선택사항) --</option>
+                        </select>
+                    </div>
+                    
+                    <!-- 기대 결과 -->
+                    <div>
+                        <label class="form-label">기대 결과 (Expected Result)</label>
+                        <select id="mapExpectedResult" class="form-control">
+                            <option value="">-- 컬럼 선택 (선택사항) --</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 4px;">
+                    <strong>📂 섹션 매핑 (선택사항)</strong>
+                    <p style="font-size: 0.9rem; color: #666; margin: 0.5rem 0;">섹션 정보가 있으면 자동으로 계층 구조가 생성됩니다.</p>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-top: 1rem;">
+                        <div style="grid-column: 1 / -1;">
+                            <label class="form-label">섹션 전체 (예: a > b > c)</label>
+                            <select id="mapSectionFull" class="form-control" onchange="onSectionFullMappingChanged()">
+                                <option value="">-- 컬럼 선택 (선택사항) --</option>
+                            </select>
+                            <small style="color:#666; display:block; margin-top:0.25rem;">
+                                '>'로 구분된 값을 자동으로 Depth 1~4로 분해합니다. (섹션 전체를 선택하면 Depth 1~4 매핑은 비활성화됩니다)
+                            </small>
+                            <div id="sectionFullPreview" style="margin-top:0.5rem; color:#666; font-size:0.85rem;"></div>
+                        </div>
+                        <div>
+                            <label class="form-label">섹션 Depth 1</label>
+                            <select id="mapSection1" class="form-control">
+                                <option value="">-- 컬럼 선택 (선택사항) --</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">섹션 Depth 2</label>
+                            <select id="mapSection2" class="form-control">
+                                <option value="">-- 컬럼 선택 (선택사항) --</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">섹션 Depth 3</label>
+                            <select id="mapSection3" class="form-control">
+                                <option value="">-- 컬럼 선택 (선택사항) --</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">섹션 Depth 4</label>
+                            <select id="mapSection4" class="form-control">
+                                <option value="">-- 컬럼 선택 (선택사항) --</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1.5rem; padding: 1rem; background: #f8f9fa; border-radius: 4px;">
+                    <strong>🧷 Jira 링크 / 🖼️ 미디어 (선택사항)</strong>
+                    <p style="font-size: 0.9rem; color: #666; margin: 0.5rem 0;">
+                        Jira 링크는 여러 개 가능(구분: 줄바꿈/쉼표/|). 미디어는 URL을 넣으면 Import 시 다운로드하여 케이스 미디어로 저장합니다.
+                    </p>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-top: 1rem;">
+                        <div>
+                            <label class="form-label">Jira Links</label>
+                            <select id="mapJiraLinks" class="form-control">
+                                <option value="">-- 컬럼 선택 (선택사항) --</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">Media URLs (image/video)</label>
+                            <select id="mapMedia" class="form-control">
+                                <option value="">-- 컬럼 선택 (선택사항) --</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 샘플 데이터 미리보기 -->
+                <div style="margin-bottom: 1.5rem;">
+                    <strong>📊 샘플 데이터 (처음 5행)</strong>
+                    <div id="sampleDataPreview" style="max-height: 200px; overflow: auto; margin-top: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                        <!-- JavaScript로 채워짐 -->
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 1rem;">
+                    <button class="btn btn-secondary" onclick="backToStep1()">← 뒤로</button>
+                    <button class="btn btn-primary" onclick="proceedToPreview()">다음 →</button>
+                </div>
+            </div>
+            
+            <!-- Step 3: 미리보기 -->
+            <div id="importStep3" style="display: none;">
+                <h4 style="margin-bottom: 1rem;">3. 미리보기</h4>
+                
+                <div id="previewSummary" style="margin-bottom: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 4px;">
+                    <!-- JavaScript로 채워짐 -->
+                </div>
+                
+                <div style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                        <thead style="position: sticky; top: 0; background: #f8f9fa;">
+                            <tr>
+                                <th style="padding: 0.75rem; border-bottom: 2px solid #ddd; text-align: left; width: 50px;">행</th>
+                                <th style="padding: 0.75rem; border-bottom: 2px solid #ddd; text-align: left;">섹션</th>
+                                <th style="padding: 0.75rem; border-bottom: 2px solid #ddd; text-align: left;">제목</th>
+                                <th style="padding: 0.75rem; border-bottom: 2px solid #ddd; text-align: left; width: 100px;">우선순위</th>
+                            </tr>
+                        </thead>
+                        <tbody id="previewTableBody">
+                            <!-- JavaScript로 채워짐 -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                    <button class="btn btn-secondary" onclick="backToStep2()">← 뒤로</button>
+                    <button class="btn btn-success" onclick="confirmImport()">✓ Import 확정</button>
+                </div>
+            </div>
+            
+            <!-- Step 4: 완료 -->
+            <div id="importStep4" style="display: none; text-align: center; padding: 2rem;">
+                <div style="font-size: 4rem; margin-bottom: 1rem;">✅</div>
+                <h3 style="margin-bottom: 1rem;">Import 완료!</h3>
+                <p id="importResultMessage" style="font-size: 1.1rem; color: #666;"></p>
+                <button class="btn btn-primary" onclick="closeImportModalAndReload()" style="margin-top: 1.5rem;">확인</button>
+            </div>
         </div>
     </div>
 </div>
@@ -397,10 +1495,12 @@ const currentSectionId = {{ current_section_id or 'null' }};
 // 드래그앤드롭 초기화
 document.addEventListener('DOMContentLoaded', function() {
     initSortable();
+    applyViewMode(); // 저장된 뷰 모드 적용
 });
 
 function initSortable() {
     const sortableLists = document.querySelectorAll('.sortable-list');
+    let dragOverTimer = null;
     
     sortableLists.forEach(list => {
         new Sortable(list, {
@@ -413,6 +1513,35 @@ function initSortable() {
             dragClass: 'sortable-drag',
             onEnd: function(evt) {
                 updateSectionOrder(evt);
+                // 타이머 정리
+                if (dragOverTimer) {
+                    clearTimeout(dragOverTimer);
+                    dragOverTimer = null;
+                }
+            },
+            onMove: function(evt) {
+                // 드래그 중인 요소가 접힌 섹션 위에 있으면 자동으로 펼치기
+                const relatedElement = evt.related;
+                if (relatedElement && relatedElement.classList.contains('section-item')) {
+                    const wrapper = relatedElement.closest('.section-wrapper');
+                    
+                    if (wrapper && wrapper.classList.contains('collapsed')) {
+                        // 0.5초 후에 자동으로 펼치기
+                        if (dragOverTimer) {
+                            clearTimeout(dragOverTimer);
+                        }
+                        
+                        dragOverTimer = setTimeout(() => {
+                            wrapper.classList.remove('collapsed');
+                            
+                            // 상태 업데이트
+                            const sectionId = parseInt(wrapper.dataset.sectionId);
+                            const collapsedSections = getCollapsedSections();
+                            collapsedSections.delete(sectionId);
+                            saveCollapsedSections(collapsedSections);
+                        }, 500);
+                    }
+                }
             }
         });
     });
@@ -443,12 +1572,281 @@ function updateSectionOrder(evt) {
     });
 }
 
-function goToSection(sectionId) {
+// 전역 함수로 명시적으로 선언 (onclick에서 접근 가능하도록)
+window.goToSection = function(sectionId) {
+    // 섹션 선택 시점 기록 (로드 시간 측정용) - 페이지 리로드 전에 저장
+    const sectionLoadStart = Date.now(); // performance.now() 대신 Date.now() 사용
+    sessionStorage.setItem('sectionLoadStart', sectionLoadStart.toString());
+    
+    // 즉시 선택 처리 (UI 업데이트)
+    document.querySelectorAll('.section-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    const clickedSection = document.querySelector(`.section-item[data-section-id="${sectionId}"]`);
+    if (clickedSection) {
+        clickedSection.classList.add('active');
+    }
+    
+    // 로딩 표시
+    const caseList = document.getElementById('caseList');
+    if (caseList) {
+        caseList.classList.add('loading');
+    }
+    
+    // 마지막 방문 섹션 저장
     if (sectionId) {
+        localStorage.setItem('lastVisitedSection_' + projectId, sectionId);
         location.href = `/p/${projectId}/cases?section_id=${sectionId}`;
     } else {
+        localStorage.removeItem('lastVisitedSection_' + projectId);
         location.href = `/p/${projectId}/cases`;
     }
+};
+
+// 페이지 로드 시 마지막 방문 섹션으로 리다이렉트
+function redirectToLastSection() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const currentSectionId = urlParams.get('section_id');
+    
+    // section_id가 없고, 저장된 마지막 섹션이 있으면 리다이렉트
+    if (!currentSectionId) {
+        const lastSectionId = localStorage.getItem('lastVisitedSection_' + projectId);
+        if (lastSectionId) {
+            location.href = `/p/${projectId}/cases?section_id=${lastSectionId}`;
+        }
+    }
+}
+
+// 섹션 컨텍스트 메뉴 토글
+function toggleSectionMenu(sectionId, event) {
+    event.stopPropagation();
+    
+    // 다른 열린 메뉴 모두 닫기
+    document.querySelectorAll('.section-context-menu.show').forEach(menu => {
+        if (menu.id !== `section-menu-${sectionId}`) {
+            menu.classList.remove('show');
+        }
+    });
+    
+    // 현재 메뉴 토글
+    const menu = document.getElementById(`section-menu-${sectionId}`);
+    if (menu) {
+        menu.classList.toggle('show');
+    }
+}
+
+// 섹션 메뉴 닫기
+function closeSectionMenu(sectionId) {
+    const menu = document.getElementById(`section-menu-${sectionId}`);
+    if (menu) {
+        menu.classList.remove('show');
+    }
+}
+
+// 모든 섹션 메뉴 닫기
+function closeAllSectionMenus() {
+    document.querySelectorAll('.section-context-menu.show').forEach(menu => {
+        menu.classList.remove('show');
+    });
+}
+
+// 케이스 타이틀 클릭 처리
+function handleCaseTitleClick(caseId, event) {
+    event.stopPropagation();
+    
+    // 컨텍스트 메뉴 클릭 시에는 처리하지 않음
+    if (event.target.closest('.case-menu-trigger') || 
+        event.target.closest('.case-context-menu')) {
+        return;
+    }
+    
+    // 편집 힌트 클릭 시에도 편집 모드 진입
+    const isHintClick = event.target.classList.contains('case-title-edit-hint');
+    
+    // 편집 모드가 활성화되어 있지 않으면 활성화
+    if (!isEditMode) {
+        const editModeBtn = document.getElementById('editModeToggle');
+        const caseListContainer = document.querySelector('.case-list-container');
+        const shortcutGuide = document.getElementById('editModeShortcutGuide');
+        
+        isEditMode = true;
+        if (editModeBtn) {
+            editModeBtn.classList.add('active');
+        }
+        if (caseListContainer) {
+            caseListContainer.classList.add('edit-mode');
+        }
+        if (shortcutGuide) {
+            shortcutGuide.style.display = 'block';
+            shortcutGuide.classList.add('edit-mode-active');
+            shortcutGuide.classList.remove('collapsed');
+            // inline display가 남아있으면 CSS가 이겨도 안 보일 수 있으니 초기화
+            shortcutGuide.querySelectorAll('.shortcut-item').forEach(item => item.style.display = '');
+        }
+    }
+    
+    // 편집 모드에서 케이스 선택 (toggleEditMode와 동일)
+    selectCaseInEditMode(caseId);
+    
+    // 편집 모드 진입
+    startTitleEdit(caseId);
+}
+
+// 케이스 메뉴 토글
+function toggleCaseMenu(caseId, event) {
+    event.stopPropagation();
+    
+    // 다른 열린 메뉴 모두 닫기
+    document.querySelectorAll('.case-context-menu.show').forEach(menu => {
+        if (menu.id !== `case-menu-${caseId}`) {
+            menu.classList.remove('show');
+        }
+    });
+    
+    // 현재 메뉴 토글
+    const menu = document.getElementById(`case-menu-${caseId}`);
+    if (menu) {
+        menu.classList.toggle('show');
+    }
+}
+
+// 케이스 메뉴 닫기
+function closeCaseMenu(caseId) {
+    const menu = document.getElementById(`case-menu-${caseId}`);
+    if (menu) {
+        menu.classList.remove('show');
+    }
+}
+
+// 모든 케이스 메뉴 닫기
+function closeAllCaseMenus() {
+    document.querySelectorAll('.case-context-menu.show').forEach(menu => {
+        menu.classList.remove('show');
+    });
+}
+
+// 섹션 접기/펼치기
+function toggleSection(sectionId) {
+    const wrapper = document.querySelector(`.section-wrapper[data-section-id="${sectionId}"]`);
+    if (!wrapper) return;
+    
+    wrapper.classList.toggle('collapsed');
+    
+    // 상태 저장
+    const collapsedSections = getCollapsedSections();
+    if (wrapper.classList.contains('collapsed')) {
+        collapsedSections.add(sectionId);
+    } else {
+        collapsedSections.delete(sectionId);
+    }
+    saveCollapsedSections(collapsedSections);
+}
+
+// 접힌 섹션 상태 가져오기
+function getCollapsedSections() {
+    const saved = localStorage.getItem('collapsedSections_' + projectId);
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+}
+
+// 접힌 섹션 상태 저장
+function saveCollapsedSections(collapsedSections) {
+    localStorage.setItem('collapsedSections_' + projectId, JSON.stringify([...collapsedSections]));
+}
+
+// 페이지 로드 시 접힌 섹션 복원
+function restoreCollapsedSections() {
+    const collapsedSections = getCollapsedSections();
+    collapsedSections.forEach(sectionId => {
+        const wrapper = document.querySelector(`.section-wrapper[data-section-id="${sectionId}"]`);
+        if (wrapper) {
+            wrapper.classList.add('collapsed');
+        }
+    });
+}
+
+// 섹션 검색
+function filterSectionTree(searchTerm) {
+    const term = searchTerm.toLowerCase().trim();
+    const wrappers = document.querySelectorAll('.section-wrapper');
+    
+    if (!term) {
+        // 검색어가 없으면 모두 표시
+        wrappers.forEach(wrapper => {
+            wrapper.classList.remove('hidden');
+        });
+        return;
+    }
+    
+    // 모든 섹션을 먼저 숨김
+    wrappers.forEach(wrapper => {
+        wrapper.classList.add('hidden');
+    });
+    
+    // 검색어와 일치하는 섹션 찾기
+    wrappers.forEach(wrapper => {
+        const sectionName = wrapper.dataset.sectionName.toLowerCase();
+        
+        if (sectionName.includes(term)) {
+            // 일치하는 섹션과 모든 부모 섹션 표시
+            showSectionAndParents(wrapper);
+            // 모든 자식 섹션도 표시
+            showAllChildren(wrapper);
+        }
+    });
+}
+
+// 섹션과 모든 부모 섹션 표시
+function showSectionAndParents(wrapper) {
+    wrapper.classList.remove('hidden');
+    
+    // 부모 섹션 찾기
+    let parent = wrapper.parentElement;
+    while (parent) {
+        if (parent.classList.contains('section-wrapper')) {
+            parent.classList.remove('hidden');
+            // 검색 중에는 자동으로 펼치기
+            parent.classList.remove('collapsed');
+        }
+        parent = parent.parentElement;
+    }
+}
+
+// 모든 자식 섹션 표시
+function showAllChildren(wrapper) {
+    const children = wrapper.querySelectorAll('.section-wrapper');
+    children.forEach(child => {
+        child.classList.remove('hidden');
+    });
+}
+
+// 모든 섹션 펼치기
+function expandAllSections() {
+    const wrappers = document.querySelectorAll('.section-wrapper');
+    wrappers.forEach(wrapper => {
+        wrapper.classList.remove('collapsed');
+    });
+    
+    // 상태 저장 (빈 Set)
+    saveCollapsedSections(new Set());
+}
+
+// 모든 섹션 접기
+function collapseAllSections() {
+    const wrappers = document.querySelectorAll('.section-wrapper');
+    const allSectionIds = new Set();
+    
+    wrappers.forEach(wrapper => {
+        const sectionId = parseInt(wrapper.dataset.sectionId);
+        // 하위 섹션이 있는 경우만 접기
+        const hasChildren = wrapper.querySelector('.section-children');
+        if (hasChildren) {
+            wrapper.classList.add('collapsed');
+            allSectionIds.add(sectionId);
+        }
+    });
+    
+    // 상태 저장
+    saveCollapsedSections(allSectionIds);
 }
 
 function quickAddCase(event) {
@@ -490,7 +1888,8 @@ function filterCases() {
 }
 
 function addSection(parentId, depth = 0) {
-    // 최대 깊이 체크 (0: 루트, 1: 1단계, 2: 2단계, 3: 3단계)
+    // 최대 깊이 체크 (0: 루트, 1: 1단계, 2: 2단계, 3: 3단계, 4: 4단계)
+    // depth 4 이상(5단계 이상)은 생성 불가
     if (depth >= 4) {
         alert('섹션은 최대 4단계까지만 생성할 수 있습니다.');
         return;
@@ -507,11 +1906,20 @@ function addSection(parentId, depth = 0) {
             parent_id: parentId
         })
     })
-    .then(res => res.json())
+    .then(res => {
+        if (!res.ok) {
+            return res.json().then(data => {
+                throw new Error(data.error || '섹션 생성 실패');
+            });
+        }
+        return res.json();
+    })
     .then(data => {
         location.reload();
     })
-    .catch(err => alert('섹션 생성 실패: ' + err));
+    .catch(err => {
+        alert(err.message || '섹션 생성 실패: ' + err);
+    });
 }
 
 function editSection(sectionId, currentName) {
@@ -536,16 +1944,27 @@ function deleteSection(sectionId) {
     fetch(`/api/sections/${sectionId}`, {
         method: 'DELETE'
     })
-    .then(() => {
-        location.reload();
+    .then(response => {
+        if (response.ok || response.status === 204) {
+            location.reload();
+            return;
+        }
+        // 에러 응답일 경우에만 JSON 파싱 시도
+        if (response.headers.get('content-type')?.includes('application/json')) {
+            return response.json().then(data => {
+                throw new Error(data.error || '섹션 삭제 실패');
+            });
+        } else {
+            throw new Error('섹션 삭제 실패');
+        }
     })
-    .catch(err => alert('섹션 삭제 실패: ' + err));
+    .catch(err => {
+        console.error('섹션 삭제 오류:', err);
+        alert('섹션 삭제 실패: ' + err.message);
+    });
 }
 
-function showCaseDetail(caseId) {
-    // TODO: 슬라이드 패널로 케이스 상세/편집 표시
-    alert('케이스 상세 보기 (향후 구현)');
-}
+// showCaseDetail 함수는 아래에 실제 구현이 있음
 
 // 중복 감지
 let duplicateCheckTimeout;
@@ -599,35 +2018,24 @@ function goToCaseDetail(caseId) {
     alert(`케이스 #${caseId} 상세 보기 (향후 구현)`);
 }
 
-// 케이스 편집
-function editCase(caseId, currentTitle) {
-    const newTitle = prompt('케이스 제목:', currentTitle);
-    if (!newTitle || newTitle === currentTitle) return;
-    
-    fetch(`/api/cases/${caseId}`, {
-        method: 'PATCH',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ title: newTitle })
-    })
-    .then(res => res.json())
-    .then(data => {
-        location.reload();
-    })
-    .catch(err => alert('케이스 수정 실패: ' + err));
-}
+// editCase 함수는 showCaseDetail로 대체됨 (편집 버튼 클릭 시 모달 열기)
 
 // 케이스 삭제 (아카이브)
-function deleteCase(caseId) {
-    if (!confirm('이 케이스를 삭제하시겠습니까?')) return;
+async function deleteCase(caseId, options = {}) {
+    const { confirmDelete = true, showAlert = false } = options;
+    if (confirmDelete && !confirm('이 케이스를 삭제하시겠습니까?')) return;
     
-    fetch(`/api/cases/${caseId}/archive`, {
-        method: 'POST'
-    })
-    .then(res => res.json())
-    .then(data => {
+    try {
+        const res = await fetch(`/api/cases/${caseId}/archive`, { method: 'POST' });
+        if (!res.ok) throw new Error(`삭제 실패 (${res.status})`);
+        await res.json();
+        if (showAlert) {
+            alert('✅ 케이스가 삭제(아카이브)되었습니다.');
+        }
         location.reload();
-    })
-    .catch(err => alert('케이스 삭제 실패: ' + err));
+    } catch (err) {
+        alert('케이스 삭제 실패: ' + err.message);
+    }
 }
 
 // 일괄 추가 토글
@@ -703,79 +2111,1218 @@ function changeSort(sortType) {
 }
 
 // 케이스 드래그 앤 드롭 초기화
+let caseSortable = null;
+let draggedCaseItem = null;
+let selectedCaseIdsBeforeDrag = [];
+let dragContext = null;
+
 function initCaseSortable() {
     const caseList = document.getElementById('caseListSortable');
     if (!caseList || typeof Sortable === 'undefined') return;
     
-    // 기본 정렬일 때만 드래그 가능
-    const isDefaultSort = currentSort === 'default' || currentSort === '';
-    
-    new Sortable(caseList, {
+    // 항상 드래그 가능 (정렬 드롭다운 제거로 항상 기본 정렬)
+    caseSortable = new Sortable(caseList, {
         animation: 150,
-        handle: '.case-content',
+        handle: '.case-drag-handle',
         ghostClass: 'sortable-ghost',
-        disabled: !isDefaultSort,  // 기본 정렬이 아니면 비활성화
+        dragClass: 'sortable-drag',
+        disabled: false,  // 항상 활성화
+        onStart: function(evt) {
+            draggedCaseItem = evt.item;
+            dragContext = {
+                parent: evt.item.parentNode,
+                nextSibling: evt.item.nextSibling,
+                caseId: parseInt(evt.item.dataset.caseId),
+                sectionId: parseInt(evt.item.dataset.sectionId),
+                oldIndex: evt.oldIndex
+            };
+            // 드래그 시작 시 선택된 케이스들 저장
+            const selectedCases = getSelectedCaseItems();
+            selectedCaseIdsBeforeDrag = selectedCases.map(item => parseInt(item.dataset.caseId));
+        },
         onEnd: function(evt) {
-            updateCaseOrder(evt);
+            const selectedCases = getSelectedCaseItems();
+            const draggedCaseId = parseInt(evt.item.dataset.caseId);
+            
+            // 다른 섹션 영역으로 드롭한 경우: 되돌리기 (섹션 이동 미지원)
+            const visualSectionId = getVisualSectionIdForCaseItem(evt.item);
+            const originalSectionId = dragContext?.sectionId;
+            if (visualSectionId && originalSectionId && visualSectionId !== originalSectionId) {
+                console.warn('[QuickRail] 케이스 섹션 간 이동은 지원하지 않음:', { draggedCaseId, originalSectionId, visualSectionId });
+                // 원래 위치로 복원
+                if (dragContext?.parent) {
+                    if (dragContext.nextSibling) {
+                        dragContext.parent.insertBefore(evt.item, dragContext.nextSibling);
+                    } else {
+                        dragContext.parent.appendChild(evt.item);
+                    }
+                }
+                alert('현재는 섹션 간 케이스 이동을 지원하지 않습니다.');
+                // 정리
+                draggedCaseItem = null;
+                selectedCaseIdsBeforeDrag = [];
+                dragContext = null;
+                return;
+            }
+            
+            // 여러 케이스가 선택되어 있고, 드래그한 케이스가 선택된 경우
+            if (selectedCaseIdsBeforeDrag.length > 1 && selectedCaseIdsBeforeDrag.includes(draggedCaseId)) {
+                // 여러 케이스 동시 이동
+                updateMultipleCaseOrder(selectedCaseIdsBeforeDrag, evt);
+            } else {
+                // 단일 케이스 이동
+                updateCaseOrder(evt);
+            }
+            
+            // 정리
+            draggedCaseItem = null;
+            selectedCaseIdsBeforeDrag = [];
+            dragContext = null;
         }
     });
     
-    console.log('Sortable 초기화:', isDefaultSort ? '드래그 가능' : '드래그 불가');
+    console.log('케이스 드래그 앤 드롭 초기화 완료');
+}
+
+function getVisualSectionIdForCaseItem(caseItemEl) {
+    // DOM 상에서 해당 case-item 바로 위에 있는 section-group-header의 data-section-id를 기준으로 "보이는 섹션" 판단
+    let el = caseItemEl.previousElementSibling;
+    while (el) {
+        if (el.classList.contains('section-group-header')) {
+            const sid = parseInt(el.dataset.sectionId);
+            return isNaN(sid) ? null : sid;
+        }
+        el = el.previousElementSibling;
+    }
+    return null;
+}
+
+function refreshCaseCheckboxIndices() {
+    const allCheckboxes = Array.from(document.querySelectorAll('.case-checkbox'));
+    allCheckboxes.forEach((cb, idx) => {
+        cb.dataset.caseIndex = idx;
+    });
+}
+
+async function persistSectionOrderFromDom(sectionId, context = {}) {
+    const sectionCaseItems = Array.from(document.querySelectorAll(`.case-item[data-section-id="${sectionId}"]`));
+    const newOrder = sectionCaseItems.map(item => ({
+        id: parseInt(item.dataset.caseId),
+        el: item
+    })).filter(x => !isNaN(x.id));
+
+    const changes = [];
+    newOrder.forEach((x, idx) => {
+        const prev = parseInt(x.el.dataset.orderIndex);
+        if (isNaN(prev) || prev !== idx) {
+            changes.push({ id: x.id, from: isNaN(prev) ? null : prev, to: idx });
+        }
+    });
+
+    const caseList = document.getElementById('caseList');
+    caseList?.classList.add('loading');
+
+    console.groupCollapsed(`🧩 [QuickRail] 섹션 order_index 저장 (section=${sectionId})`);
+    console.log('context:', context);
+    console.log('changes:', changes);
+    const t0 = performance.now();
+
+    try {
+        await Promise.all(changes.map(ch =>
+            fetch(`/api/cases/${ch.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ order_index: ch.to })
+            }).then(r => {
+                if (!r.ok) throw new Error(`PATCH /api/cases/${ch.id} failed (${r.status})`);
+                return r.json();
+            })
+        ));
+
+        // DOM 데이터 갱신
+        newOrder.forEach((x, idx) => {
+            x.el.dataset.orderIndex = idx;
+        });
+
+        refreshCaseCheckboxIndices();
+        updateSectionHeaderCheckboxState(sectionId);
+        updateSelectAllState();
+
+        console.log(`✅ done: ${(performance.now() - t0).toFixed(2)}ms, updated=${changes.length}`);
+    } catch (err) {
+        console.error('❌ order_index 저장 실패:', err);
+        alert('케이스 순서 저장 실패: ' + err.message);
+    } finally {
+        console.groupEnd();
+        caseList?.classList.remove('loading');
+    }
+}
+
+// 선택된 케이스 아이템들 가져오기
+function getSelectedCaseItems() {
+    const selectedCheckboxes = document.querySelectorAll('.case-checkbox:checked');
+    return Array.from(selectedCheckboxes).map(cb => {
+        const caseId = parseInt(cb.dataset.caseId);
+        return document.querySelector(`.case-item[data-case-id="${caseId}"]`);
+    }).filter(item => item !== null);
 }
 
 // 케이스 순서 업데이트
 function updateCaseOrder(evt) {
-    const caseId = evt.item.dataset.caseId;
-    const newIndex = evt.newIndex;
-    
-    fetch(`/api/cases/${caseId}`, {
-        method: 'PATCH',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            order_index: newIndex
-        })
-    })
-    .then(res => res.json())
-    .then(data => {
-        console.log('케이스 순서 업데이트 완료');
-    })
-    .catch(err => {
-        alert('순서 변경 실패: ' + err);
-        location.reload();
+    const sectionId = parseInt(evt.item.dataset.sectionId);
+    const draggedCaseId = parseInt(evt.item.dataset.caseId);
+    if (isNaN(sectionId) || isNaN(draggedCaseId)) return;
+
+    persistSectionOrderFromDom(sectionId, {
+        type: 'single',
+        draggedCaseId,
+        oldIndex: evt.oldIndex,
+        newIndex: evt.newIndex
     });
 }
 
-// 케이스 복사
-async function copyCase(caseId) {
-    if (!confirm('이 케이스를 복사하시겠습니까?')) return;
+// 여러 케이스 동시 순서 업데이트
+async function updateMultipleCaseOrder(selectedCaseIds, evt) {
+    if (selectedCaseIds.length === 0) return;
+
+    const draggedCaseId = parseInt(evt.item.dataset.caseId);
+    const sectionId = parseInt(evt.item.dataset.sectionId);
+    if (isNaN(sectionId) || isNaN(draggedCaseId)) return;
+
+    // 선택된 케이스가 같은 섹션인지 확인
+    const selectedItems = selectedCaseIds
+        .map(id => document.querySelector(`.case-item[data-case-id="${id}"]`))
+        .filter(Boolean);
+    const sectionMismatch = selectedItems.some(it => parseInt(it.dataset.sectionId) !== sectionId);
+    if (sectionMismatch) {
+        alert('여러 케이스 동시 이동은 같은 섹션 내에서만 지원합니다.');
+        await persistSectionOrderFromDom(sectionId, { type: 'multi-fallback', draggedCaseId });
+        return;
+    }
+
+    // 섹션 내 DOM 순서 기반으로 새 순서 계산
+    const sectionCaseIds = Array.from(document.querySelectorAll(`.case-item[data-section-id="${sectionId}"]`))
+        .map(it => parseInt(it.dataset.caseId))
+        .filter(id => !isNaN(id));
+
+    const selectedInOrder = sectionCaseIds.filter(id => selectedCaseIds.includes(id));
+    const remaining = sectionCaseIds.filter(id => !selectedCaseIds.includes(id));
+    const dropIndex = sectionCaseIds.indexOf(draggedCaseId);
+    const insertAt = Math.max(0, Math.min(dropIndex, remaining.length));
+    const newOrder = [
+        ...remaining.slice(0, insertAt),
+        ...selectedInOrder,
+        ...remaining.slice(insertAt)
+    ];
+
+    const caseList = document.getElementById('caseList');
+    caseList?.classList.add('loading');
+
+    console.groupCollapsed(`🧩 [QuickRail] 다중 이동 저장 (section=${sectionId})`);
+    console.log({ draggedCaseId, selectedCaseIds, dropIndex, insertAt });
+    console.log('newOrder:', newOrder);
+    const t0 = performance.now();
+
+    try {
+        const updatePromises = newOrder.map((caseId, index) => 
+            fetch(`/api/cases/${caseId}`, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    order_index: index
+                })
+            })
+        );
+        
+        await Promise.all(updatePromises);
+        console.log(`✅ done: ${(performance.now() - t0).toFixed(2)}ms`);
+        
+        // 선택 해제
+        document.querySelectorAll('.case-checkbox:checked').forEach(cb => {
+            cb.checked = false;
+        });
+        updateSelectAllState();
+        
+        // 페이지 새로고침하여 정확한 순서 반영
+        location.reload();
+    } catch (err) {
+        console.error('순서 변경 실패:', err);
+        alert('순서 변경 실패: ' + err);
+        location.reload();
+    } finally {
+        console.groupEnd();
+        caseList?.classList.remove('loading');
+    }
+}
+
+// 전체 선택/해제
+function toggleSelectAll(checked) {
+    const checkboxes = document.querySelectorAll('.case-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = checked;
+    });
+    updateDeleteButtonVisibility();
+}
+
+// 전체 선택 상태 업데이트 (개별 체크박스 변경 시)
+function updateSelectAllState() {
+    const checkboxes = document.querySelectorAll('.case-checkbox');
+    const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+    const selectAllCheckbox = document.getElementById('selectAllCases');
+    
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = checkedCount === checkboxes.length && checkboxes.length > 0;
+        selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+    }
+    updateDeleteButtonVisibility();
+    updateSelectedItemsHighlight();
+}
+
+// Shift 클릭으로 범위 선택
+let lastCheckedIndex = -1;
+
+function handleCheckboxChange(checkbox, event) {
+    if (event.shiftKey && lastCheckedIndex !== -1) {
+        // Shift 클릭: 범위 선택
+        const currentIndex = parseInt(checkbox.dataset.caseIndex);
+        const startIndex = Math.min(lastCheckedIndex, currentIndex);
+        const endIndex = Math.max(lastCheckedIndex, currentIndex);
+        
+        const allCheckboxes = Array.from(document.querySelectorAll('.case-checkbox'));
+        const targetState = checkbox.checked;
+        
+        for (let i = startIndex; i <= endIndex; i++) {
+            if (allCheckboxes[i]) {
+                allCheckboxes[i].checked = targetState;
+            }
+        }
+    } else {
+        // 일반 클릭: 마지막 체크 인덱스 업데이트
+        lastCheckedIndex = parseInt(checkbox.dataset.caseIndex);
+    }
+    
+    updateSelectAllState();
+
+    // 섹션 헤더 체크박스 상태 동기화
+    const caseItem = checkbox.closest('.case-item');
+    if (caseItem && caseItem.dataset.sectionId) {
+        updateSectionHeaderCheckboxState(parseInt(caseItem.dataset.sectionId));
+    }
+}
+
+// 섹션 그룹 헤더 체크박스로 해당 섹션 케이스 전체 선택/해제
+function toggleSectionCasesSelection(sectionId, headerCheckbox, event) {
+    if (event) event.stopPropagation();
+    const targetChecked = !!headerCheckbox.checked;
+    const checkboxes = document.querySelectorAll(`.case-item[data-section-id="${sectionId}"] .case-checkbox`);
+    checkboxes.forEach(cb => {
+        if (cb.checked !== targetChecked) {
+            cb.checked = targetChecked;
+            cb.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    });
+    updateSectionHeaderCheckboxState(sectionId);
+    updateSelectAllState();
+}
+
+function updateSectionHeaderCheckboxState(sectionId) {
+    const headerCb = document.querySelector(`.section-select-checkbox[data-section-id="${sectionId}"]`);
+    if (!headerCb) return;
+    const checkboxes = Array.from(document.querySelectorAll(`.case-item[data-section-id="${sectionId}"] .case-checkbox`));
+    if (checkboxes.length === 0) {
+        headerCb.checked = false;
+        headerCb.indeterminate = false;
+        return;
+    }
+    const checkedCount = checkboxes.filter(cb => cb.checked).length;
+    headerCb.checked = checkedCount === checkboxes.length;
+    headerCb.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+}
+
+// 선택된 항목 하이라이트
+function updateSelectedItemsHighlight() {
+    const checkboxes = document.querySelectorAll('.case-checkbox');
+    checkboxes.forEach((checkbox, index) => {
+        const caseItem = checkbox.closest('.case-item');
+        if (caseItem) {
+            if (checkbox.checked) {
+                caseItem.classList.add('selected');
+                caseItem.classList.add('checkbox-selected'); // 체크박스로 인한 선택 표시
+            } else {
+                caseItem.classList.remove('selected');
+                caseItem.classList.remove('checkbox-selected');
+            }
+        }
+    });
+}
+
+// 케이스 선택 (클릭 시)
+let selectedCaseId = null;
+let titleEditTimeout = null;
+let lastClickTime = 0;
+let lastClickCaseId = null;
+let isEditMode = false; // 편집 모드 상태
+
+function selectCase(caseId, event) {
+    // 체크박스나 드래그 핸들 클릭이면 무시
+    if (event.target.closest('.case-checkbox') || event.target.closest('.case-drag-handle') || event.target.closest('.case-actions')) {
+        return;
+    }
+    
+    const currentTime = Date.now();
+    const titleElement = document.getElementById(`case-title-${caseId}`);
+    
+    // 편집 모드가 아닐 때만 기존 로직 실행
+    if (!isEditMode) {
+        const caseItem = document.querySelector(`.case-item[data-case-id="${caseId}"]`);
+        const checkbox = caseItem?.querySelector('.case-checkbox');
+        
+        // case-title 클릭은 handleCaseTitleClick에서 처리
+        if (event.target.closest('.case-title') || event.target.classList.contains('case-title')) {
+            return;
+        }
+        
+        // 같은 케이스를 다시 클릭한 경우 (이미 선택된 상태)
+        if (selectedCaseId === caseId) {
+            // 타이틀 외 영역 클릭 시 선택 해제
+            if (titleElement) {
+                titleElement.contentEditable = 'false';
+                titleElement.classList.remove('editing');
+            }
+            if (caseItem) {
+                caseItem.classList.remove('selected');
+            }
+            if (checkbox) {
+                checkbox.checked = false;
+            }
+            selectedCaseId = null;
+            updateSelectAllState();
+            return;
+        }
+        
+        // 이전 케이스의 편집 모드 저장 및 해제
+        if (selectedCaseId && selectedCaseId !== caseId) {
+            const prevTitle = document.getElementById(`case-title-${selectedCaseId}`);
+            if (prevTitle && prevTitle.classList.contains('editing')) {
+                // 편집 중이면 즉시 저장 후 해제
+                // 연필 아이콘을 제외한 텍스트만 가져오기
+                const textSpan = prevTitle.querySelector('.case-title-text');
+                const newTitle = textSpan ? textSpan.textContent.trim() : prevTitle.textContent.replace('✏️', '').trim();
+                const prevCaseId = parseInt(prevTitle.dataset.caseId);
+                // blur 이벤트를 트리거하여 저장
+                const focusElement = textSpan || prevTitle;
+                if (document.activeElement === focusElement) {
+                    focusElement.blur();
+                }
+                saveCaseTitle(prevCaseId, newTitle, true); // 즉시 저장
+            }
+            // 선택 상태(체크박스, selected 클래스)는 유지
+        }
+        
+        // 새 케이스 선택
+        selectedCaseId = caseId;
+        lastClickCaseId = caseId;
+        lastClickTime = currentTime;
+        
+        if (caseItem && checkbox && titleElement) {
+            // 체크박스 선택
+            checkbox.checked = true;
+            updateSelectAllState();
+            
+            // 케이스 아이템 선택 표시
+            caseItem.classList.add('selected');
+        }
+    }
+    // 편집 모드일 때는 클릭으로 케이스 선택하지 않음
+}
+
+// 편집 모드 토글
+function toggleEditMode() {
+    isEditMode = !isEditMode;
+    const editModeBtn = document.getElementById('editModeToggle');
+    const editModeIcon = document.getElementById('editModeIcon');
+    const caseListContainer = document.querySelector('.case-list-container');
+    const shortcutGuide = document.getElementById('editModeShortcutGuide');
+    
+    if (isEditMode) {
+        editModeBtn.classList.add('active');
+        // editModeIcon.textContent = '✅';
+        caseListContainer?.classList.add('edit-mode');
+        
+        // 단축키 가이드 표시 (편집모드: 전체 표시)
+        if (shortcutGuide) {
+            shortcutGuide.style.display = 'block';
+            shortcutGuide.classList.remove('collapsed');
+            shortcutGuide.classList.add('edit-mode-active');
+            // inline display 초기화 (CSS로 제어)
+            shortcutGuide.querySelectorAll('.shortcut-item').forEach(item => item.style.display = '');
+        }
+        
+        // 편집 모드 진입 시 첫 번째 케이스 선택
+        const firstCase = document.querySelector('.case-item');
+        if (firstCase) {
+            const caseId = firstCase.dataset.caseId;
+            selectCaseInEditMode(caseId);
+        }
+    } else {
+        editModeBtn.classList.remove('active');
+        // editModeIcon.textContent = '📝';
+        caseListContainer?.classList.remove('edit-mode');
+        
+        // 단축키 가이드 표시 유지 (비편집모드: 토글 키만 표시)
+        if (shortcutGuide) {
+            shortcutGuide.style.display = 'block';
+            shortcutGuide.classList.remove('edit-mode-active');
+            // 접혀있으면 토글 키도 안 보이므로 비편집모드에서는 펼침 유지
+            shortcutGuide.classList.remove('collapsed');
+            // inline display 초기화 (CSS로 제어)
+            shortcutGuide.querySelectorAll('.shortcut-item').forEach(item => item.style.display = '');
+        }
+        
+        // 편집 모드 종료 시 편집 중인 타이틀 저장
+        if (selectedCaseId) {
+            const titleElement = document.getElementById(`case-title-${selectedCaseId}`);
+            if (titleElement && titleElement.classList.contains('editing')) {
+                titleElement.blur();
+            }
+        }
+        
+        // 선택 해제
+        deselectAllInEditMode();
+        selectedCaseId = null;
+    }
+}
+
+// 편집 모드에서 케이스 선택
+function selectCaseInEditMode(caseId) {
+    if (!isEditMode) return;
+    
+    // 이전 선택 해제
+    if (selectedCaseId) {
+        const prevTitle = document.getElementById(`case-title-${selectedCaseId}`);
+        if (prevTitle && prevTitle.classList.contains('editing')) {
+            prevTitle.blur(); // 저장
+        }
+        const prevItem = document.querySelector(`.case-item[data-case-id="${selectedCaseId}"]`);
+        if (prevItem) {
+            prevItem.classList.remove('edit-mode-selected');
+        }
+    }
+    
+    // 새 케이스 선택 (숫자로 변환하여 저장)
+    selectedCaseId = parseInt(caseId);
+    const caseItem = document.querySelector(`.case-item[data-case-id="${caseId}"]`);
+    if (caseItem) {
+        caseItem.classList.add('edit-mode-selected');
+        
+        // 스크롤하여 보이게
+        caseItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+}
+
+// 편집 모드에서 모든 선택 해제
+function deselectAllInEditMode() {
+    document.querySelectorAll('.case-item').forEach(item => {
+        item.classList.remove('edit-mode-selected');
+    });
+}
+
+// 단축키 가이드 접기/펼치기
+function toggleShortcutGuide() {
+    const shortcutGuide = document.getElementById('editModeShortcutGuide');
+    if (shortcutGuide) {
+        shortcutGuide.classList.toggle('collapsed');
+    }
+}
+
+// 편집 모드에서 다음/이전 케이스로 이동
+function moveToNextCase() {
+    if (!isEditMode || !selectedCaseId) return;
+    
+    const allCases = Array.from(document.querySelectorAll('.case-item'));
+    // selectedCaseId를 숫자로 변환하여 비교
+    const currentIndex = allCases.findIndex(item => parseInt(item.dataset.caseId) === parseInt(selectedCaseId));
+    
+    if (currentIndex === -1) {
+        // 현재 선택된 케이스를 찾을 수 없으면 첫 번째 케이스 선택
+        if (allCases.length > 0) {
+            selectCaseInEditMode(allCases[0].dataset.caseId);
+        }
+        return;
+    }
+    
+    if (currentIndex < allCases.length - 1) {
+        const nextCase = allCases[currentIndex + 1];
+        selectCaseInEditMode(nextCase.dataset.caseId);
+    }
+}
+
+function moveToPrevCase() {
+    if (!isEditMode || !selectedCaseId) return;
+    
+    const allCases = Array.from(document.querySelectorAll('.case-item'));
+    // selectedCaseId를 숫자로 변환하여 비교
+    const currentIndex = allCases.findIndex(item => parseInt(item.dataset.caseId) === parseInt(selectedCaseId));
+    
+    if (currentIndex === -1) {
+        // 현재 선택된 케이스를 찾을 수 없으면 첫 번째 케이스 선택
+        if (allCases.length > 0) {
+            selectCaseInEditMode(allCases[0].dataset.caseId);
+        }
+        return;
+    }
+    
+    if (currentIndex > 0) {
+        const prevCase = allCases[currentIndex - 1];
+        selectCaseInEditMode(prevCase.dataset.caseId);
+    }
+}
+
+// 편집 모드에서 새 케이스 추가
+async function createNewCaseAt(position) {
+    if (!isEditMode || !selectedCaseId) return;
+    
+    const currentCaseItem = document.querySelector(`.case-item[data-case-id="${selectedCaseId}"]`);
+    if (!currentCaseItem) return;
+    
+    const currentCaseId = selectedCaseId;
+    const allCases = Array.from(document.querySelectorAll('.case-item'));
+    const currentIndex = allCases.findIndex(item => item.dataset.caseId === currentCaseId);
+    
+    // 현재 케이스의 섹션 ID 가져오기
+    const sectionId = currentCaseItem.dataset.sectionId;
+    
+    if (!sectionId) {
+        alert('섹션을 먼저 선택해주세요.');
+        return;
+    }
+    
+    // 현재 케이스의 order_index 가져오기
+    const currentOrderIndex = parseInt(currentCaseItem.dataset.orderIndex) || currentIndex;
+    
+    // 새 케이스의 order_index 계산
+    let newOrderIndex;
+    if (position === 'before') {
+        newOrderIndex = currentOrderIndex;
+    } else {
+        newOrderIndex = currentOrderIndex + 1;
+    }
     
     try {
-        // 현재 케이스의 order_index 찾기
-        const caseItem = document.querySelector(`.case-item[data-case-id="${caseId}"]`);
-        const allCases = Array.from(document.querySelectorAll('.case-item'));
-        const currentIndex = allCases.indexOf(caseItem);
-        
-        const res = await fetch(`/api/cases/${caseId}/copy`, {
+        // 새 케이스 생성
+        const response = await fetch(`/api/projects/${projectId}/cases`, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+                'Content-Type': 'application/json'
+            },
             body: JSON.stringify({
-                insert_after: currentIndex  // 현재 위치 바로 다음에 삽입
+                title: '새 케이스',
+                section_id: parseInt(sectionId),
+                steps: '',
+                expected_result: '',
+                priority: 'Medium',
+                order_index: newOrderIndex
             })
         });
         
-        if (res.ok) {
-            alert('케이스가 복사되었습니다.');
-            location.reload();
-        } else {
-            alert('복사 실패');
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || '케이스 생성 실패');
         }
+        
+        const newCase = await response.json();
+        
+        // 번역 경고가 있으면 표시
+        if (newCase.translation_warning) {
+            alert('⚠️ 번역 경고\n\n' + newCase.translation_warning + '\n\n케이스는 정상적으로 생성되었습니다.');
+        }
+        
+        // 우선순위 아이콘 SVG 가져오기
+        const priorityIcons = {
+            'Blocker': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 15c-3.9 0-7-3.1-7-7s3.1-7 7-7 7 3.1 7 7-3.1 7-7 7zM4 7c-.6 0-1 .4-1 1s.4 1 1 1h8c.6 0 1-.4 1-1s-.4-1-1-1H4z" fill="#ff5630"/></svg>',
+            'Critical': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><linearGradient id="grad-critical-new" gradientUnits="userSpaceOnUse" x1="-46.25" y1="65.1105" x2="-46.25" y2="64.1105" gradientTransform="matrix(12 0 0 -13.1121 563 854.7415)"><stop offset="0" stop-color="#ff5630"/><stop offset="1" stop-color="#ff8f73"/></linearGradient><path d="M2.5 4l5-2.9c.3-.2.7-.2 1 0l5 2.9c.3.2.5.5.5.9v8.2c0 .6-.4 1-1 1-.2 0-.4 0-.5-.1L8 11.4 3.5 14c-.5.3-1.1.1-1.4-.4-.1-.1-.1-.3-.1-.5V4.9c0-.4.2-.7.5-.9z" fill="url(#grad-critical-new)"/></svg>',
+            'High': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M7.984436 3.200867l-4.5 2.7c-.5.3-1.1.1-1.3-.4s-.2-1.1.3-1.3l5-3c.3-.2.7-.2 1 0l5 3c.5.3.6.9.3 1.4-.3.5-.9.6-1.4.3l-4.4-2.7z" fill="#ff5630"/><path d="M3.484436 10.200867c-.5.3-1.1.1-1.3-.3s-.2-1.1.3-1.4l5-3c.3-.2.7-.2 1 0l5 3c.5.3.6.9.3 1.4-.3.5-.9.6-1.4.3l-4.4-2.7-4.5 2.7z" fill="#ff7452"/><path d="M3.484436 14.500867c-.5.3-1.1.2-1.3-.3s-.2-1.1.3-1.4l5-3c.3-.2.7-.2 1 0l5 3c.5.3.6.9.3 1.4-.3.5-.9.6-1.4.3l-4.4-2.7-4.5 2.7z" fill="#ff8f73"/></svg>',
+            'Medium': '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M14 6.5L2 6.5L2 5L14 5L14 6.5ZM14 11L2 11L2 9.5L14 9.5L14 11Z" fill="#E06C00"/></svg>',
+            'Low': '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M7.5874 10.8762L2.0874 7.25122L2.91287 5.99878L8.00014 9.35175L13.0874 5.99878L13.9129 7.25122L8.41287 10.8762C8.16246 11.0413 7.83781 11.0413 7.5874 10.8762Z" fill="#4688EC"/></svg>'
+        };
+        
+        // 현재 날짜 포맷팅
+        const now = new Date();
+        const dateStr = now.getFullYear() + '-' + 
+                        String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                        String(now.getDate()).padStart(2, '0') + ' ' +
+                        String(now.getHours()).padStart(2, '0') + ':' +
+                        String(now.getMinutes()).padStart(2, '0');
+        
+        // 새 케이스 DOM 요소 생성
+        const newCaseHtml = `
+            <div class="case-item" data-case-id="${newCase.id}" data-section-id="${newCase.section_id}" data-order-index="${newCase.order_index}">
+                <div class="case-drag-handle" title="드래그하여 순서 변경">☰</div>
+                <input type="checkbox" class="case-checkbox" data-case-id="${newCase.id}" data-case-index="0" onchange="handleCheckboxChange(this, event)" onclick="event.stopPropagation()">
+                <div class="case-content" onclick="selectCase(${newCase.id}, event)" style="cursor: pointer; flex: 1;">
+                    <div class="case-title" id="case-title-${newCase.id}" data-case-id="${newCase.id}" contenteditable="false" onclick="handleCaseTitleClick(${newCase.id}, event)">
+                        <span class="case-title-text">${newCase.title}</span>
+                        <span class="case-title-edit-hint">클릭하여 편집</span>
+                    </div>
+                    <div class="case-meta">
+                        <span class="priority-badge priority-${newCase.priority}">${priorityIcons[newCase.priority] || ''}</span>
+                        <span style="font-size: 0.85rem; color: #666;">📅 생성: ${dateStr}</span>
+                        <span style="font-size: 0.85rem; color: #666;">🕐 수정: ${dateStr}</span>
+                    </div>
+                </div>
+                <div class="case-actions">
+                    <button class="case-menu-trigger" onclick="event.stopPropagation(); toggleCaseMenu(${newCase.id}, event)" title="메뉴">⋮</button>
+                    <div class="case-context-menu" id="case-menu-${newCase.id}">
+                        <button class="case-context-menu-item" onclick="event.stopPropagation(); showCaseDetail(${newCase.id}); closeCaseMenu(${newCase.id})">
+                            <span>✏️</span>
+                            <span>편집</span>
+                        </button>
+                        <button class="case-context-menu-item" onclick="event.stopPropagation(); copyCase(${newCase.id}); closeCaseMenu(${newCase.id})">
+                            <span>📋</span>
+                            <span>복제</span>
+                        </button>
+                        <button class="case-context-menu-item danger" onclick="event.stopPropagation(); deleteCase(${newCase.id}); closeCaseMenu(${newCase.id})">
+                            <span>🗑️</span>
+                            <span>삭제</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // 케이스를 적절한 위치에 삽입
+        const caseListContainer = document.getElementById('caseListSortable');
+        if (position === 'before') {
+            currentCaseItem.insertAdjacentHTML('beforebegin', newCaseHtml);
+        } else {
+            currentCaseItem.insertAdjacentHTML('afterend', newCaseHtml);
+        }
+        
+        // 모든 케이스의 order_index 업데이트
+        const allCases = Array.from(document.querySelectorAll('.case-item'));
+        allCases.forEach((item, index) => {
+            item.dataset.orderIndex = index;
+        });
+        
+        // Sortable 재초기화
+        initCaseSortable();
+        
+        // 새로 생성된 케이스의 원본 타이틀 저장
+        const newTitleElement = document.getElementById(`case-title-${newCase.id}`);
+        if (newTitleElement) {
+            newTitleElement.dataset.originalTitle = newCase.title;
+        }
+        
+        // 새로 생성된 케이스 선택 및 편집 모드로 진입
+        setTimeout(() => {
+            selectCaseInEditMode(newCase.id);
+            startTitleEdit(newCase.id, 'replace');
+        }, 50);
+        
+    } catch (error) {
+        console.error('케이스 생성 오류:', error);
+        alert('케이스 생성 중 오류가 발생했습니다: ' + error.message);
+    }
+}
+
+// 키보드 입력으로 타이틀 수정 (엑셀처럼)
+document.addEventListener('keydown', function(e) {
+    // 편집 모드 토글 단축키 (Ctrl+E 또는 Cmd+E)
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'e' || e.key === 'E')) {
+        e.preventDefault();
+        toggleEditMode();
+        return;
+    }
+    
+    // 편집 모드가 아닐 때는 기존 로직
+    if (!isEditMode) {
+        if (!selectedCaseId) return;
+        
+        const titleElement = document.getElementById(`case-title-${selectedCaseId}`);
+        if (!titleElement) return;
+        
+        // 이미 편집 중이면 Enter/Escape만 처리
+        if (titleElement.classList.contains('editing')) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                titleElement.blur(); // blur 이벤트로 저장
+                return;
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelTitleEdit(selectedCaseId);
+                return;
+            }
+            return; // 편집 중에는 다른 키는 그대로 처리
+        }
+        
+        // 편집 모드가 아닐 때: F2로 편집 시작
+        if (e.key === 'F2') {
+            e.preventDefault();
+            startTitleEdit(selectedCaseId, 'end');
+        }
+        return;
+    }
+    
+    // 편집 모드일 때
+    if (!selectedCaseId) return;
+    
+    const titleElementEdit = document.getElementById(`case-title-${selectedCaseId}`);
+    if (!titleElementEdit) return;
+    
+    // 이미 편집 중이면
+    if (titleElementEdit.classList.contains('editing')) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            titleElementEdit.blur(); // blur 이벤트로 저장
+            // 다음 케이스로 이동
+            moveToNextCase();
+            return;
+        }
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            cancelTitleEdit(selectedCaseId);
+            return;
+        }
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            titleElementEdit.blur(); // 저장
+            moveToPrevCase();
+            return;
+        }
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            titleElementEdit.blur(); // 저장
+            moveToNextCase();
+            return;
+        }
+        return; // 편집 중에는 다른 키는 그대로 처리
+    }
+    
+    // 편집 중이 아닐 때
+    if (e.key === 'ArrowUp' && e.ctrlKey) {
+        // Ctrl + 위 방향키: 현재 위치 위에 새 케이스 추가
+        e.preventDefault();
+        createNewCaseAt('before');
+    } else if (e.key === 'ArrowDown' && e.ctrlKey) {
+        // Ctrl + 아래 방향키: 현재 위치 아래에 새 케이스 추가
+        e.preventDefault();
+        createNewCaseAt('after');
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        moveToPrevCase();
+    } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        moveToNextCase();
+    } else if (e.key === 'F2' || e.key === 'Enter') {
+        e.preventDefault();
+        startTitleEdit(selectedCaseId, 'end');
+    } else if ((e.ctrlKey || e.metaKey) && (e.key === 'Delete' || e.key === 'Backspace')) {
+        // Ctrl+Delete (Win) / Cmd+Backspace (Mac): 케이스 삭제(아카이브)
+        e.preventDefault();
+        const ok = confirm('현재 케이스를 삭제(아카이브)하시겠습니까?');
+        if (ok) {
+            deleteCase(selectedCaseId, { confirmDelete: false, showAlert: true });
+        } else {
+            alert('❎ 삭제가 취소되었습니다.');
+        }
+    } else if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) {
+        // Ctrl+D: 케이스 복제 (다음 순서)
+        e.preventDefault();
+        copyCase(selectedCaseId, { confirmCopy: false, showAlert: true });
+    } else if (e.key === 'F4') {
+        // 상세 편집 모달 열기 (F4)
+        e.preventDefault();
+        showCaseDetail(selectedCaseId);
+    }
+});
+
+// 문서 전체 클릭 시 선택 해제
+document.addEventListener('click', function(e) {
+    // 케이스 메뉴 외부 클릭 시 메뉴 닫기
+    if (!e.target.closest('.case-menu-trigger') && !e.target.closest('.case-context-menu')) {
+        closeAllCaseMenus();
+    }
+    
+    // 케이스 아이템 외부를 클릭한 경우
+    if (!e.target.closest('.case-item') && !e.target.closest('.modal')) {
+        if (selectedCaseId) {
+            const titleElement = document.getElementById(`case-title-${selectedCaseId}`);
+            if (titleElement && titleElement.classList.contains('editing')) {
+                // 편집 중이면 저장
+                titleElement.blur();
+            }
+            // 선택 해제는 하지 않음 (체크박스는 유지)
+        }
+    }
+});
+
+// 타이틀 편집 시작
+function startTitleEdit(caseId, mode) {
+    const titleElement = document.getElementById(`case-title-${caseId}`);
+    if (!titleElement) return;
+    
+    // 편집 모드 진입 시 원본 텍스트 저장
+    const textSpan = titleElement.querySelector('.case-title-text');
+    if (textSpan && !titleElement.dataset.originalTitle) {
+        titleElement.dataset.originalTitle = textSpan.textContent.trim();
+    }
+    
+    // 편집 모드에서는 텍스트만 편집 가능하도록 설정
+    if (textSpan) {
+        textSpan.contentEditable = 'true';
+        titleElement.contentEditable = 'false';
+    } else {
+        titleElement.contentEditable = 'true';
+    }
+    
+    titleElement.classList.add('editing');
+    const focusElement = textSpan || titleElement;
+    focusElement.focus();
+    
+    // mode가 명시적으로 지정된 경우에만 커서 위치 조정
+    const targetElement = textSpan || titleElement;
+    if (mode === 'end') {
+        // F2: 커서를 끝으로
+        setTimeout(() => {
+            const range = document.createRange();
+            range.selectNodeContents(targetElement);
+            range.collapse(false);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+        }, 0);
+    } else if (mode === 'replace') {
+        // 직접 입력: 전체 선택 (나중에 입력한 문자로 대체)
+        setTimeout(() => {
+            const range = document.createRange();
+            range.selectNodeContents(targetElement);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+        }, 0);
+    }
+    // mode가 없으면 (클릭으로 진입) 커서 위치를 변경하지 않음
+}
+
+// 타이틀 편집 취소
+function cancelTitleEdit(caseId) {
+    const titleElement = document.getElementById(`case-title-${caseId}`);
+    if (titleElement) {
+        // 원래 값으로 복원
+        const originalTitle = titleElement.dataset.originalTitle;
+        if (originalTitle) {
+            restoreTitleStructure(titleElement, originalTitle);
+        } else {
+            // 서버에서 다시 가져오기
+            fetch(`/api/cases/${caseId}`)
+                .then(res => res.json())
+                .then(data => {
+                    titleElement.dataset.originalTitle = data.title;
+                    restoreTitleStructure(titleElement, data.title);
+                })
+                .catch(err => console.error('케이스 로드 실패:', err));
+        }
+        titleElement.contentEditable = 'false';
+        titleElement.classList.remove('editing');
+    }
+}
+
+// 타이틀 저장 (디바운스)
+function saveCaseTitle(caseId, newTitle, immediate = false) {
+    const titleElement = document.getElementById(`case-title-${caseId}`);
+    if (!titleElement) return;
+    
+    const originalTitle = titleElement.dataset.originalTitle || titleElement.textContent.trim();
+    
+    if (newTitle === originalTitle || !newTitle) {
+        // 변경사항 없음
+        titleElement.contentEditable = 'false';
+        titleElement.classList.remove('editing');
+        // 편집 종료 시 구조 복원
+        restoreTitleStructure(titleElement, newTitle);
+        return;
+    }
+    
+    const saveFunction = () => {
+        fetch(`/api/cases/${caseId}`, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ title: newTitle })
+        })
+        .then(res => res.json())
+        .then(data => {
+            titleElement.dataset.originalTitle = newTitle;
+            titleElement.contentEditable = 'false';
+            titleElement.classList.remove('editing');
+            // 편집 종료 시 구조 복원
+            restoreTitleStructure(titleElement, newTitle);
+            console.log('타이틀 저장 완료');
+        })
+        .catch(err => {
+            console.error('타이틀 저장 실패:', err);
+            alert('타이틀 저장 실패: ' + err);
+            cancelTitleEdit(caseId);
+        });
+    };
+    
+    if (immediate) {
+        // 즉시 저장 (다른 case 선택 시 등)
+        clearTimeout(titleEditTimeout);
+        saveFunction();
+    } else {
+        // 디바운스: 타이핑이 끝난 후 저장
+        clearTimeout(titleEditTimeout);
+        titleEditTimeout = setTimeout(saveFunction, 500); // 500ms 디바운스
+    }
+}
+
+// 타이틀 구조 복원 (편집 종료 시)
+function restoreTitleStructure(titleElement, text) {
+    // 편집 모드에서 구조가 변경되었을 수 있으므로 복원
+    const existingTextSpan = titleElement.querySelector('.case-title-text');
+    const existingHint = titleElement.querySelector('.case-title-edit-hint');
+    
+    if (!existingTextSpan) {
+        // 구조가 없으면 다시 생성
+        titleElement.innerHTML = `<span class="case-title-text">${text}</span><span class="case-title-edit-hint">클릭하여 편집</span>`;
+    } else {
+        // 텍스트만 업데이트
+        existingTextSpan.textContent = text;
+        existingTextSpan.contentEditable = 'false';
+        if (!existingHint) {
+            // 힌트가 없으면 추가
+            const hint = document.createElement('span');
+            hint.className = 'case-title-edit-hint';
+            hint.textContent = '클릭하여 편집';
+            titleElement.appendChild(hint);
+        }
+    }
+    titleElement.contentEditable = 'false';
+}
+
+// 타이틀 편집 중 실시간 저장 (blur 이벤트)
+document.addEventListener('blur', function(e) {
+    const titleElement = e.target.closest('.case-title');
+    if (titleElement && titleElement.classList.contains('editing')) {
+        const caseId = parseInt(titleElement.dataset.caseId);
+        // 연필 아이콘을 제외한 텍스트만 가져오기
+        const textSpan = titleElement.querySelector('.case-title-text');
+        const newTitle = textSpan ? textSpan.textContent.trim() : titleElement.textContent.replace('✏️', '').trim();
+        saveCaseTitle(caseId, newTitle);
+    }
+}, true);
+
+// 선택 삭제 버튼 및 우선순위 변경 UI 표시/숨김
+function updateDeleteButtonVisibility() {
+    const deleteBtn = document.getElementById('deleteSelectedBtn');
+    const bulkPriorityContainer = document.getElementById('bulkPriorityContainer');
+    if (!deleteBtn) return;
+    
+    const checkedBoxes = document.querySelectorAll('.case-checkbox:checked');
+    if (checkedBoxes.length > 0) {
+        deleteBtn.style.display = 'inline-block';
+        deleteBtn.textContent = `선택 삭제 (${checkedBoxes.length})`;
+        if (bulkPriorityContainer) {
+            bulkPriorityContainer.style.display = 'flex';
+        }
+    } else {
+        deleteBtn.style.display = 'none';
+        if (bulkPriorityContainer) {
+            bulkPriorityContainer.style.display = 'none';
+        }
+    }
+}
+
+// 우선순위 일괄 변경
+async function bulkChangePriority() {
+    const select = document.getElementById('bulkPrioritySelect');
+    const priority = select.value;
+    
+    if (!priority) {
+        alert('우선순위를 선택해주세요.');
+        return;
+    }
+    
+    const checkedBoxes = document.querySelectorAll('.case-checkbox:checked');
+    if (checkedBoxes.length === 0) {
+        alert('변경할 케이스를 선택해주세요.');
+        return;
+    }
+    
+    const caseIds = Array.from(checkedBoxes).map(cb => parseInt(cb.dataset.caseId));
+    
+    if (!confirm(`선택한 ${caseIds.length}개 케이스의 우선순위를 ${priority}로 변경하시겠습니까?`)) {
+        return;
+    }
+    
+    try {
+        // 각 케이스의 우선순위 업데이트
+        const promises = caseIds.map(caseId => 
+            fetch(`/api/cases/${caseId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    priority: priority
+                })
+            })
+        );
+        
+        await Promise.all(promises);
+        
+        // 페이지 새로고침
+        alert('우선순위가 변경되었습니다.');
+        window.location.reload();
+        
+    } catch (error) {
+        console.error('우선순위 변경 오류:', error);
+        alert('우선순위 변경 중 오류가 발생했습니다.');
+    }
+}
+
+// 선택된 케이스 전체 삭제
+async function deleteSelectedCases() {
+    const checkedBoxes = document.querySelectorAll('.case-checkbox:checked');
+    if (checkedBoxes.length === 0) {
+        alert('삭제할 케이스를 선택해주세요.');
+        return;
+    }
+    
+    const caseIds = Array.from(checkedBoxes).map(cb => parseInt(cb.dataset.caseId));
+    const count = caseIds.length;
+    
+    if (!confirm(`선택한 ${count}개의 케이스를 삭제하시겠습니까?`)) {
+        return;
+    }
+    
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (const caseId of caseIds) {
+        try {
+            const res = await fetch(`/api/cases/${caseId}/archive`, {
+                method: 'POST'
+            });
+            
+            if (res.ok) {
+                successCount++;
+            } else {
+                failCount++;
+            }
+        } catch (err) {
+            console.error('케이스 삭제 실패:', caseId, err);
+            failCount++;
+        }
+    }
+    
+    if (successCount > 0) {
+        alert(`완료!\n성공: ${successCount}개\n실패: ${failCount}개`);
+        location.reload();
+    } else {
+        alert('삭제 실패: ' + failCount + '개');
+    }
+}
+
+// 간편보기/상세보기 토글
+const VIEW_MODE_KEY = 'quickrail_case_view_mode';
+let currentViewMode = localStorage.getItem(VIEW_MODE_KEY) || 'detail'; // 'compact' or 'detail'
+
+function toggleViewMode() {
+    // 현재 모드에 따라 토글
+    currentViewMode = currentViewMode === 'compact' ? 'detail' : 'compact';
+    localStorage.setItem(VIEW_MODE_KEY, currentViewMode);
+    
+    const caseItems = document.querySelectorAll('.case-item');
+    const viewToggleBtn = document.getElementById('viewToggleBtn');
+    const viewToggleIcon = document.getElementById('viewToggleIcon');
+    
+    // 애니메이션 완전히 방지
+    caseItems.forEach(item => {
+        // transition을 완전히 제거하고 클래스 변경
+        const meta = item.querySelector('.case-meta');
+        const content = item.querySelector('.case-content');
+        
+        item.style.transition = 'none';
+        if (meta) meta.style.transition = 'none';
+        if (content) content.style.transition = 'none';
+        
+        if (currentViewMode === 'compact') {
+            item.classList.add('compact-view');
+        } else {
+            item.classList.remove('compact-view');
+        }
+        
+        // transition은 복원하지 않음 (애니메이션 완전 제거)
+    });
+    
+    if (currentViewMode === 'compact') {
+        viewToggleBtn.classList.add('active');
+        viewToggleIcon.textContent = '📋';
+        viewToggleBtn.title = '상세보기로 전환';
+    } else {
+        viewToggleBtn.classList.remove('active');
+        viewToggleIcon.textContent = '📄';
+        viewToggleBtn.title = '간편보기로 전환';
+    }
+}
+
+// 페이지 로드 시 저장된 뷰 모드 적용
+function applyViewMode() {
+    const caseItems = document.querySelectorAll('.case-item');
+    const viewToggleBtn = document.getElementById('viewToggleBtn');
+    const viewToggleIcon = document.getElementById('viewToggleIcon');
+    
+    if (currentViewMode === 'compact') {
+        caseItems.forEach(item => item.classList.add('compact-view'));
+        if (viewToggleBtn) {
+            viewToggleBtn.classList.add('active');
+        }
+        if (viewToggleIcon) {
+            viewToggleIcon.textContent = '📋';
+        }
+    } else {
+        caseItems.forEach(item => item.classList.remove('compact-view'));
+        if (viewToggleBtn) {
+            viewToggleBtn.classList.remove('active');
+        }
+        if (viewToggleIcon) {
+            viewToggleIcon.textContent = '📄';
+        }
+    }
+}
+
+// 케이스 복사
+async function copyCase(caseId, options = {}) {
+    const { confirmCopy = true, showAlert = false } = options;
+    if (confirmCopy && !confirm('이 케이스를 복사하시겠습니까?')) return;
+    
+    try {
+        // 서버가 원본 케이스의 order_index + 1 위치로 삽입 (다음 순서)
+        const res = await fetch(`/api/cases/${caseId}/copy`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({})
+        });
+        
+        if (!res.ok) throw new Error(`복사 실패 (${res.status})`);
+        await res.json();
+        if (showAlert) {
+            alert('✅ 케이스가 다음 순서로 복제되었습니다.');
+        }
+        location.reload();
     } catch (err) {
-        alert('오류 발생: ' + err);
+        alert('오류 발생: ' + err.message);
     }
 }
 
 // 케이스 상세보기
 let currentCaseId = null;
+
+let modalCurrentLang = 'original';
+let modalOriginalData = null;
+let modalTranslationData = null;
 
 async function showCaseDetail(caseId) {
     try {
@@ -784,6 +3331,9 @@ async function showCaseDetail(caseId) {
         
         const caseData = await res.json();
         currentCaseId = caseId;
+        modalOriginalData = caseData;
+        modalCurrentLang = 'original';
+        modalTranslationData = null;
         
         const modalTitle = document.getElementById('modalCaseTitle');
         const modalContent = document.getElementById('modalCaseContent');
@@ -803,12 +3353,17 @@ async function showCaseDetail(caseId) {
         };
         
         modalTitle.innerHTML = `
-            <div contenteditable="true" id="modalTitle" 
-                 style="display: inline-block; min-width: 300px; border: 1px solid transparent; padding: 0.25rem; border-radius: 4px; outline: none;"
-                 onblur="updateModalField('title', this.textContent.trim())"
-                 onfocus="this.style.border='1px solid #3498db'; this.style.background='#f0f8ff';"
-                 onblur="this.style.border='1px solid transparent'; this.style.background='transparent';">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <div contenteditable="true" id="modalTitle" 
+                     style="display: inline-block; min-width: 300px; border: 1px solid transparent; padding: 0.25rem; border-radius: 4px; outline: none; flex: 1;"
+                     onblur="updateModalField('title', this.textContent.trim())"
+                     onfocus="this.style.border='1px solid #3498db'; this.style.background='#f0f8ff';"
+                     onblur="this.style.border='1px solid transparent'; this.style.background='transparent';">
 ${escapeHtml(caseData.title)}</div>
+                <span style="padding: 0.25rem 0.75rem; background: #e3f2fd; color: #1976d2; border-radius: 12px; font-size: 0.85rem; white-space: nowrap;">
+                    v${caseData.version || 1}
+                </span>
+            </div>
         `;
         
         modalContent.innerHTML = `
@@ -816,6 +3371,7 @@ ${escapeHtml(caseData.title)}</div>
                 <strong>우선순위:</strong>
                 <select id="modalPriority" class="form-control" style="display: inline-block; width: auto; margin-left: 0.5rem;" 
                         onchange="updateModalField('priority', this.value)">
+                    <option value="Blocker" ${caseData.priority === 'Blocker' ? 'selected' : ''}>Blocker</option>
                     <option value="Critical" ${caseData.priority === 'Critical' ? 'selected' : ''}>Critical</option>
                     <option value="High" ${caseData.priority === 'High' ? 'selected' : ''}>High</option>
                     <option value="Medium" ${caseData.priority === 'Medium' ? 'selected' : ''}>Medium</option>
@@ -830,6 +3386,37 @@ ${escapeHtml(caseData.title)}</div>
             </div>
             <div style="margin-bottom: 1rem;">
                 <strong>태그:</strong> ${caseData.tags.length > 0 ? caseData.tags.map(t => `<span class="tag-badge">${escapeHtml(t)}</span>`).join(' ') : '없음'}
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <h4 style="margin: 0 0 0.5rem 0;">🧷 Jira 링크</h4>
+                <div style="display:flex; gap:0.5rem; margin-bottom:0.5rem;">
+                    <input type="text" id="modalJiraLinkInput" class="form-control" placeholder="https://... 또는 JIRA-123" style="flex:1;"
+                           onkeypress="if(event.key==='Enter'){event.preventDefault(); addCaseJiraLink();}">
+                    <button type="button" class="btn btn-primary" onclick="addCaseJiraLink()">추가</button>
+                </div>
+                <div id="modalJiraLinksList" style="display:flex; flex-direction:column; gap:0.35rem;">
+                    ${(caseData.jira_links && caseData.jira_links.length > 0) ? caseData.jira_links.map((u) => `
+                        <div style="display:flex; gap:0.5rem; align-items:center;">
+                            <a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" style="flex:1; color:#3498db; text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🔗 ${escapeHtml(u)}</a>
+                        </div>
+                    `).join('') : `<div style="color:#999; font-size:0.9rem;">등록된 링크가 없습니다.</div>`}
+                </div>
+            </div>
+            <div style="margin-bottom: 1rem;">
+                <h4 style="margin: 0 0 0.5rem 0;">🖼️ 미디어 (이미지/영상)</h4>
+                <div style="display:flex; gap:0.5rem; margin-bottom:0.5rem;">
+                    <input type="file" id="modalCaseMediaInput" class="form-control" accept="image/*,video/*">
+                    <button type="button" class="btn btn-primary" onclick="uploadCaseMedia()">업로드</button>
+                </div>
+                <div id="modalCaseMediaList" style="display:flex; flex-direction:column; gap:0.35rem;">
+                    ${(caseData.media && caseData.media.length > 0) ? caseData.media.map((m) => `
+                        <div style="display:flex; gap:0.5rem; align-items:center;">
+                            <a href="${escapeHtml(m.url)}" target="_blank" rel="noopener noreferrer"
+                               style="flex:1; color:#3498db; text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">📎 ${escapeHtml(m.original_name)}</a>
+                            <button type="button" class="btn btn-secondary" style="padding:0.25rem 0.5rem;" onclick="deleteCaseMedia(${m.id})">삭제</button>
+                        </div>
+                    `).join('') : `<div style="color:#999; font-size:0.9rem;">등록된 미디어가 없습니다.</div>`}
+                </div>
             </div>
             <hr>
             <div style="margin-bottom: 1rem;">
@@ -855,10 +3442,138 @@ ${escapeHtml(caseData.title)}</div>
             </div>
         `;
         
-        modal.style.display = 'block';
+        // 언어 버튼 초기화
+        modal.classList.add('show');
+
+        // 링크/미디어 데이터가 최신이 아닐 수 있어 재로딩 (백엔드 저장 후 즉시 반영)
+        refreshCaseLinksAndMedia();
     } catch (err) {
         console.error('케이스 로드 오류:', err);
         alert('케이스 로드 실패: ' + err.message);
+    }
+}
+
+async function refreshCaseLinksAndMedia() {
+    if (!currentCaseId) return;
+    try {
+        const res = await fetch(`/api/cases/${currentCaseId}`);
+        if (!res.ok) return;
+        const caseData = await res.json();
+        modalOriginalData = caseData;
+
+        // 리스트만 갱신
+        const escapeHtml = (text) => {
+            if (!text) return '';
+            const map = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'};
+            return String(text).replace(/[&<>"']/g, m => map[m]);
+        };
+
+        const linksEl = document.getElementById('modalJiraLinksList');
+        if (linksEl) {
+            linksEl.innerHTML = (caseData.jira_links && caseData.jira_links.length > 0)
+                ? caseData.jira_links.map((u) => `
+                    <div style="display:flex; gap:0.5rem; align-items:center;">
+                        <a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" style="flex:1; color:#3498db; text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🔗 ${escapeHtml(u)}</a>
+                    </div>
+                `).join('')
+                : `<div style="color:#999; font-size:0.9rem;">등록된 링크가 없습니다.</div>`;
+        }
+
+        const mediaEl = document.getElementById('modalCaseMediaList');
+        if (mediaEl) {
+            mediaEl.innerHTML = (caseData.media && caseData.media.length > 0)
+                ? caseData.media.map((m) => `
+                    <div style="display:flex; gap:0.5rem; align-items:center;">
+                        <a href="${escapeHtml(m.url)}" target="_blank" rel="noopener noreferrer"
+                           style="flex:1; color:#3498db; text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">📎 ${escapeHtml(m.original_name)}</a>
+                        <button type="button" class="btn btn-secondary" style="padding:0.25rem 0.5rem;" onclick="deleteCaseMedia(${m.id})">삭제</button>
+                    </div>
+                `).join('')
+                : `<div style="color:#999; font-size:0.9rem;">등록된 미디어가 없습니다.</div>`;
+        }
+    } catch (e) {
+        // noop
+    }
+}
+
+async function addCaseJiraLink() {
+    const input = document.getElementById('modalJiraLinkInput');
+    if (!input || !currentCaseId) return;
+    const url = (input.value || '').trim();
+    if (!url) return alert('링크를 입력해주세요.');
+    try {
+        const res = await fetch(`/api/cases/${currentCaseId}/jira-links`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ url })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return alert(data.error || '저장 실패');
+        input.value = '';
+        await refreshCaseLinksAndMedia();
+    } catch (e) {
+        alert('저장 실패: ' + e);
+    }
+}
+
+async function uploadCaseMedia() {
+    const input = document.getElementById('modalCaseMediaInput');
+    if (!input || !currentCaseId) return;
+    const file = input.files && input.files[0];
+    if (!file) return alert('파일을 선택해주세요.');
+    const form = new FormData();
+    form.append('file', file);
+    try {
+        const res = await fetch(`/api/cases/${currentCaseId}/media`, { method: 'POST', body: form });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return alert(data.error || '업로드 실패');
+        input.value = '';
+        await refreshCaseLinksAndMedia();
+    } catch (e) {
+        alert('업로드 실패: ' + e);
+    }
+}
+
+async function deleteCaseMedia(mediaId) {
+    if (!confirm('이 미디어를 삭제하시겠습니까?')) return;
+    try {
+        const res = await fetch(`/api/case-media/${mediaId}`, { method: 'DELETE' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return alert(data.error || '삭제 실패');
+        await refreshCaseLinksAndMedia();
+    } catch (e) {
+        alert('삭제 실패: ' + e);
+    }
+}
+
+// 모달 언어 토글 함수 제거됨 (버튼 제거로 인해 불필요)
+
+// 모달 콘텐츠 표시
+function displayModalContent(caseData) {
+    const modalTitle = document.getElementById('modalCaseTitle');
+    const modalContent = document.getElementById('modalCaseContent');
+    
+    const escapeHtml = (text) => {
+        if (!text) return '';
+        const map = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'};
+        return String(text).replace(/[&<>"']/g, m => map[m]);
+    };
+    
+    // 제목만 업데이트 (다른 요소는 유지)
+    const titleElement = document.getElementById('modalTitle');
+    if (titleElement) {
+        titleElement.textContent = caseData.title;
+    }
+    
+    // 스텝과 기대 결과 업데이트
+    const stepsElement = document.getElementById('modalSteps');
+    if (stepsElement) {
+        stepsElement.textContent = caseData.steps || '스텝 정보 없음';
+    }
+    
+    const expectedElement = document.getElementById('modalExpected');
+    if (expectedElement) {
+        expectedElement.textContent = caseData.expected_result || '기대 결과 없음';
     }
 }
 
@@ -877,13 +3592,26 @@ async function updateModalField(field, value) {
             throw new Error('저장 실패');
         }
         
+        const result = await response.json();
+        
+        // 번역 경고가 있으면 표시
+        if (result.translation_warning) {
+            console.warn('번역 경고:', result.translation_warning);
+            // 모달 내에 경고 표시 (선택적)
+            showTranslationWarning(result.translation_warning);
+        }
+        
         console.log('저장 완료:', field, value);
         
         // 페이지의 케이스 목록도 업데이트 (새로고침 없이)
         const caseItem = document.querySelector(`.case-item[data-case-id="${currentCaseId}"]`);
         if (caseItem && field === 'title') {
             const titleElement = caseItem.querySelector('.case-title');
-            if (titleElement) titleElement.textContent = value;
+            if (titleElement) {
+                // 원본 타이틀도 갱신
+                titleElement.dataset.baseTitle = value;
+                restoreTitleStructure(titleElement, value);
+            }
         }
         
     } catch (err) {
@@ -893,22 +3621,1008 @@ async function updateModalField(field, value) {
 }
 
 function closeCaseDetail() {
-    document.getElementById('caseDetailModal').style.display = 'none';
+    const modal = document.getElementById('caseDetailModal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
+    // 번역 경고 제거
+    const warningDiv = document.getElementById('translationWarning');
+    if (warningDiv) {
+        warningDiv.remove();
+    }
 }
 
-// 모달 외부 클릭 시 닫기
-window.onclick = function(event) {
-    const modal = document.getElementById('caseDetailModal');
-    if (event.target === modal) {
-        closeCaseDetail();
+function showTranslationWarning(message) {
+    // 기존 경고 제거
+    const existingWarning = document.getElementById('translationWarning');
+    if (existingWarning) {
+        existingWarning.remove();
+    }
+    
+    // 새 경고 표시
+    const modalBody = document.getElementById('modalCaseContent');
+    if (modalBody) {
+        const warningDiv = document.createElement('div');
+        warningDiv.id = 'translationWarning';
+        warningDiv.style.cssText = 'background: #fff3cd; border: 1px solid #ffc107; color: #856404; padding: 0.75rem; border-radius: 4px; margin-bottom: 1rem;';
+        warningDiv.innerHTML = `
+            <strong>⚠️ 번역 경고</strong><br>
+            ${message}
+        `;
+        modalBody.insertBefore(warningDiv, modalBody.firstChild);
+        
+        // 5초 후 자동 제거
+        setTimeout(() => {
+            if (warningDiv.parentNode) {
+                warningDiv.remove();
+            }
+        }, 5000);
+    }
+}
+
+// caseDetailModal: 모달 외부(백드롭) 클릭으로 닫히지 않도록 함
+// (닫기는 X 버튼 또는 ESC만)
+
+// 언어 변경
+let currentLanguage = 'original';
+const translationCache = {};
+let translationBaseTitlesInitialized = false;
+
+// CSV Export 함수
+function exportSectionCasesCSV() {
+    if (!currentSectionId) {
+        alert('섹션을 선택해주세요.');
+        return;
+    }
+    
+    const url = `/api/sections/${currentSectionId}/cases/export.csv`;
+    window.location.href = url;
+}
+
+function initBaseTitlesIfNeeded() {
+    if (translationBaseTitlesInitialized) return;
+    document.querySelectorAll('.case-title').forEach(el => {
+        const textSpan = el.querySelector('.case-title-text');
+        const titleText = textSpan ? textSpan.textContent.trim() : el.textContent.trim();
+        if (!el.dataset.baseTitle) {
+            el.dataset.baseTitle = titleText;
+        }
+    });
+    translationBaseTitlesInitialized = true;
+}
+
+function updateRetranslateButtonVisibility() {
+    const btn = document.getElementById('retranslateBtn');
+    if (!btn) return;
+    btn.style.display = (currentLanguage === 'ko' || currentLanguage === 'en') ? 'inline-block' : 'none';
+}
+
+async function retranslateCurrentLanguage() {
+    if (!(currentLanguage === 'ko' || currentLanguage === 'en')) return;
+    const ok = confirm(`현재 언어(${currentLanguage})로 재번역하시겠습니까?\n\n- 기존 번역 캐시는 무시/갱신됩니다.\n- 시간이 조금 걸릴 수 있습니다.`);
+    if (!ok) return;
+    await changeLanguage(currentLanguage, { force: true });
+}
+
+async function changeLanguage(lang, options = {}) {
+    currentLanguage = lang;
+    const force = !!options.force;
+    initBaseTitlesIfNeeded();
+    updateRetranslateButtonVisibility();
+    
+    // 선택한 언어를 localStorage에 저장 (원본은 기본값으로 유지)
+    if (lang === 'original') {
+        localStorage.setItem('preferredLanguage', 'original');
+    } else {
+        localStorage.setItem('preferredLanguage', lang);
+    }
+
+    // 원본이면 즉시 복원 (API 호출 없음)
+    if (lang === 'original') {
+        const caseItems = Array.from(document.querySelectorAll('.case-item'));
+        caseItems.forEach(item => {
+            const titleEl = item.querySelector('.case-title');
+            if (!titleEl) return;
+            const baseTitle = titleEl.dataset.baseTitle;
+            if (baseTitle) {
+                restoreTitleStructure(titleEl, baseTitle);
+            }
+        });
+        return;
+    }
+    
+    // 로딩 오버레이 표시
+    showTranslationLoading();
+    
+    // 번역 표시
+    const caseItems = Array.from(document.querySelectorAll('.case-item'));
+    const totalCases = caseItems.length;
+    
+    try {
+        // 모든 케이스 ID 수집
+        const caseIds = caseItems.map(item => parseInt(item.dataset.caseId)).filter(id => !isNaN(id));
+        
+        if (caseIds.length === 0) {
+            hideTranslationLoading();
+            return;
+        }
+        
+        updateTranslationProgress(0, totalCases, '번역 요청 중...');
+        
+        // 배치 번역 API 호출 (force=true면 캐시 무시)
+        const response = await fetch('/api/cases/translate-batch', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                case_ids: caseIds,
+                target_lang: lang,
+                force: force
+            })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || '번역 실패');
+        }
+        
+        const result = await response.json();
+        
+        updateTranslationProgress(totalCases / 2, totalCases, '번역 적용 중...');
+        
+        // 번역 결과를 캐시에 저장하고 화면에 표시
+        let appliedCount = 0;
+        for (const translationResult of result.results) {
+            const caseId = translationResult.case_id;
+            const translation = translationResult.translation;
+            
+            if (translation) {
+                // 캐시에 저장
+                const cacheKey = `${caseId}-${lang}`;
+                translationCache[cacheKey] = translation;
+                
+                // 화면에 표시
+                const item = caseItems.find(el => parseInt(el.dataset.caseId) === caseId);
+                if (item) {
+                    const titleElement = item.querySelector('.case-title');
+                    if (titleElement && translation.title) {
+                        restoreTitleStructure(titleElement, translation.title);
+                    }
+                }
+            }
+            
+            appliedCount++;
+            updateTranslationProgress(totalCases / 2 + (appliedCount / result.results.length) * (totalCases / 2), totalCases, '번역 적용 중...');
+        }
+        
+        console.log(`✅ 배치 번역 완료: 총 ${totalCases}개 케이스 (신규 번역: ${result.translated_count}개, 캐시 사용: ${result.cached_count}개, force=${force})`);
+        
+    } catch (error) {
+        console.error('배치 번역 실패:', error);
+        alert(`⚠️ 번역 실패\n\n${error.message}\n\n번역을 표시할 수 없습니다.`);
+    } finally {
+        // 로딩 오버레이 숨기기
+        hideTranslationLoading();
+    }
+}
+
+// 번역 로딩 오버레이 표시
+function showTranslationLoading() {
+    let overlay = document.getElementById('translationLoadingOverlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'translationLoadingOverlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        `;
+        
+        overlay.innerHTML = `
+            <div style="background: white; padding: 2rem 3rem; border-radius: 12px; text-align: center; min-width: 300px;">
+                <div style="font-size: 3rem; margin-bottom: 1rem;">🌐</div>
+                <h3 style="margin: 0 0 1rem 0;">번역 중...</h3>
+                <div style="background: #e0e0e0; height: 8px; border-radius: 4px; overflow: hidden;">
+                    <div id="translationProgressBar" style="background: #4caf50; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(overlay);
+    }
+    overlay.style.display = 'flex';
+}
+
+// 번역 로딩 오버레이 숨기기
+function hideTranslationLoading() {
+    const overlay = document.getElementById('translationLoadingOverlay');
+    if (overlay) {
+        overlay.style.display = 'none';
+    }
+}
+
+// 번역 진행률 업데이트
+function updateTranslationProgress(current, total, message = null) {
+    const progressBar = document.getElementById('translationProgressBar');
+    
+    if (progressBar) {
+        const percentage = (current / total) * 100;
+        progressBar.style.width = percentage + '%';
     }
 }
 
 // 페이지 로드 시 드래그 앤 드롭 초기화
+
+// 페이지 로드 시간 측정 시작
+let pageLoadStart = performance.now();
+let domContentLoadedTime = 0;
+let initialSetupTime = 0;
+
+// 페이지 로드 시작 (로그 제거)
+
+// 마지막 방문 섹션으로 리다이렉트 (최초 실행)
+redirectToLastSection();
+
 document.addEventListener('DOMContentLoaded', function() {
-    initCaseSortable();
+    domContentLoadedTime = performance.now();
+    
+    // 섹션 로드 시간 측정 및 출력 (DOMContentLoaded 시점)
+    const sectionLoadStart = sessionStorage.getItem('sectionLoadStart');
+    if (sectionLoadStart) {
+        const loadTime = Date.now() - parseFloat(sectionLoadStart);
+        console.log(`⏱️ [섹션 로드 - DOMContentLoaded] ${loadTime.toFixed(2)}ms`);
+    }
+    
+    // 로딩 표시 제거
+    const caseList = document.getElementById('caseList');
+    if (caseList) {
+        caseList.classList.remove('loading');
+    }
+    
+    // 즉시 필요한 것만 초기화
+    applyViewMode();
+    
+    // 단축키 가이드 초기화 (편집모드가 아닐 때도 표시, 토글 키만)
+    const shortcutGuide = document.getElementById('editModeShortcutGuide');
+    if (shortcutGuide) {
+        // 페이지 로드 시에는 항상 편집모드가 아니므로 토글 키만 표시
+        shortcutGuide.style.display = 'block';
+        shortcutGuide.classList.remove('edit-mode-active');
+        const shortcutItems = shortcutGuide.querySelectorAll('.shortcut-item');
+        shortcutItems.forEach((item, index) => {
+            if (index === 0) {
+                item.style.display = 'flex';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+        console.log('단축키 가이드 초기화 완료 (토글 키만 표시)');
+    }
+    
+    // 기본값: 원본 (섹션 이동/리로드 시 자동 번역 로딩 방지)
+    const langSelect = document.getElementById('languageSelect');
+    if (langSelect) {
+        langSelect.value = 'original';
+    }
+    localStorage.setItem('preferredLanguage', 'original');
+    initBaseTitlesIfNeeded();
+    currentLanguage = 'original';
+    updateRetranslateButtonVisibility();
+    
+    // 접힌 섹션 복원
+    restoreCollapsedSections();
+    
+    // 문서 클릭 시 섹션 메뉴 닫기
+    document.addEventListener('click', function(event) {
+        // 메뉴 트리거나 메뉴 자체를 클릭한 경우가 아니면 모든 메뉴 닫기
+        if (!event.target.closest('.section-menu-trigger') && !event.target.closest('.section-context-menu') &&
+            !event.target.closest('.case-menu-trigger') && !event.target.closest('.case-context-menu')) {
+            closeAllSectionMenus();
+        }
+    });
+    
+    initialSetupTime = performance.now();
+    
+    // 모달 외부 클릭 시 닫기
+    window.onclick = function(event) {
+        const customAlertModal = document.getElementById('customAlertModal');
+        const importModal = document.getElementById('importModal');
+        const rootSectionModal = document.getElementById('rootSectionSelectorModal');
+        
+        if (event.target === customAlertModal) {
+            closeCustomAlert();
+        } else if (event.target === importModal) {
+            closeImportModal();
+        } else if (event.target === rootSectionModal) {
+            closeRootSectionSelector();
+        }
+        // caseDetailModal은 외부 클릭으로 닫히지 않음 (ESC 키로만 닫기)
+    };
+    
+    // ESC 키로 케이스 상세 모달 닫기
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const caseDetailModal = document.getElementById('caseDetailModal');
+            if (caseDetailModal && caseDetailModal.classList.contains('show')) {
+                closeCaseDetail();
+            }
+        }
+    });
+    
+    // 나머지는 지연 초기화 (즉시 실행으로 변경하여 성능 향상)
+    // requestIdleCallback 대신 즉시 실행하여 섹션 로드 속도 향상
+    initDeferredFeatures();
 });
+
+function initDeferredFeatures() {
+    // 드래그 앤 드롭 초기화
+    initCaseSortable();
+    
+    // 체크박스 이벤트 리스너 (이벤트 위임으로 최적화)
+    const caseListContainer = document.querySelector('.case-list');
+    if (caseListContainer) {
+        caseListContainer.addEventListener('change', function(e) {
+            if (e.target.classList.contains('case-checkbox')) {
+                handleCheckboxChange(e.target, e);
+            }
+        });
+    }
+    
+    // 초기 하이라이트 업데이트
+    updateSelectedItemsHighlight();
+    
+    // 섹션 로드 완료 시간 측정 및 출력 (모든 초기화 완료 시점)
+    const sectionLoadStart = sessionStorage.getItem('sectionLoadStart');
+    if (sectionLoadStart) {
+        const loadTime = Date.now() - parseFloat(sectionLoadStart);
+        console.log(`✅ [섹션 로드 완료] 총 ${loadTime.toFixed(2)}ms`);
+        sessionStorage.removeItem('sectionLoadStart');
+    }
+    
+    // 로딩 표시 제거
+    const caseList = document.getElementById('caseList');
+    if (caseList) {
+        caseList.classList.remove('loading');
+    }
+}
+
+// ============================================================
+// 커스텀 Alert 함수 (드래그 가능한 에러 메시지)
+// ============================================================
+
+function showCustomAlert(message, title = '알림') {
+    const modal = document.getElementById('customAlertModal');
+    const titleElement = document.getElementById('customAlertTitle');
+    const messageElement = document.getElementById('customAlertMessage');
+    
+    titleElement.textContent = title;
+    messageElement.textContent = message;
+    modal.style.display = 'block';
+}
+
+function closeCustomAlert() {
+    document.getElementById('customAlertModal').style.display = 'none';
+}
+
+// 기존 alert 함수를 커스텀 alert로 오버라이드
+const originalAlert = window.alert;
+window.alert = function(message) {
+    // 에러 메시지인 경우 커스텀 alert 사용
+    if (typeof message === 'string' && (message.includes('실패') || message.includes('오류') || message.includes('에러') || message.includes('Import'))) {
+        showCustomAlert(message, message.includes('실패') || message.includes('오류') || message.includes('에러') ? '⚠️ 오류' : '알림');
+    } else {
+        showCustomAlert(message);
+    }
+};
+
+// ============================================================
+// Import 기능
+// ============================================================
+
+let importFileData = null;
+let importPreviewData = null;
+let selectedFile = null;
+let allSectionsForImport = [];
+let selectedRootSectionId = null;
+let selectedRootSectionDepth = 0;
+
+function openImportModal() {
+    document.getElementById('importModal').style.display = 'block';
+    document.getElementById('importStep1').style.display = 'block';
+    document.getElementById('importStep2').style.display = 'none';
+    document.getElementById('importStep3').style.display = 'none';
+    document.getElementById('importStep4').style.display = 'none';
+    
+    importFileData = null;
+    importPreviewData = null;
+    selectedFile = null;
+
+    // 파일 선택 UI 초기화 (재오픈 시 유지되는 버그 방지)
+    const fileInfo = document.getElementById('fileInfo');
+    const fileName = document.getElementById('fileName');
+    const fileInput = document.getElementById('fileInput');
+    if (fileName) fileName.textContent = '';
+    if (fileInfo) fileInfo.style.display = 'none';
+    if (fileInput) fileInput.value = '';
+    const sectionFullPreview = document.getElementById('sectionFullPreview');
+    if (sectionFullPreview) sectionFullPreview.textContent = '';
+    selectedRootSectionDepth = 0;
+    applyImportSectionDepthConstraints();
+    
+    // 드래그 앤 드롭 설정
+    const dropZone = document.getElementById('dropZone');
+    // fileInput은 위에서 이미 참조
+    
+    dropZone.onclick = () => fileInput.click();
+    
+    dropZone.ondragover = (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = '#2980b9';
+        dropZone.style.background = '#e3f2fd';
+    };
+    
+    dropZone.ondragleave = () => {
+        dropZone.style.borderColor = '#3498db';
+        dropZone.style.background = '#f8f9fa';
+    };
+    
+    dropZone.ondrop = (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = '#3498db';
+        dropZone.style.background = '#f8f9fa';
+        
+        if (e.dataTransfer.files.length > 0) {
+            fileInput.files = e.dataTransfer.files;
+            handleFileSelect(e.dataTransfer.files[0]);
+        }
+    };
+    
+    fileInput.onchange = (e) => {
+        if (e.target.files.length > 0) {
+            handleFileSelect(e.target.files[0]);
+        }
+    };
+}
+
+function closeImportModal() {
+    document.getElementById('importModal').style.display = 'none';
+    importFileData = null;
+    importPreviewData = null;
+    selectedFile = null;
+    const fileInfo = document.getElementById('fileInfo');
+    const fileName = document.getElementById('fileName');
+    const fileInput = document.getElementById('fileInput');
+    if (fileName) fileName.textContent = '';
+    if (fileInfo) fileInfo.style.display = 'none';
+    if (fileInput) fileInput.value = '';
+}
+
+function closeImportModalAndReload() {
+    closeImportModal();
+    location.reload();
+}
+
+async function handleFileSelect(file) {
+    const fileInfo = document.getElementById('fileInfo');
+    const fileName = document.getElementById('fileName');
+    
+    fileName.textContent = file.name;
+    fileInfo.style.display = 'block';
+    selectedFile = file;
+    
+    // 파일 업로드 및 컬럼 정보 가져오기
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+        const res = await fetch(`/api/projects/${projectId}/cases/import/preview`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.error || '파일 파싱 실패');
+        }
+        
+        const data = await res.json();
+        importFileData = data;
+        
+        // Step 2로 이동 (컬럼 매핑)
+        showColumnMapping(data);
+        
+    } catch (err) {
+        alert('파일 처리 실패: ' + err.message);
+        console.error(err);
+    }
+}
+
+function showColumnMapping(data) {
+    document.getElementById('importStep1').style.display = 'none';
+    document.getElementById('importStep2').style.display = 'block';
+    
+    // 컬럼 선택 드롭다운 채우기
+    const selects = [
+        'mapTitle', 'mapPriority', 'mapSteps', 'mapExpectedResult',
+        'mapSectionFull', 'mapSection1', 'mapSection2', 'mapSection3', 'mapSection4',
+        'mapJiraLinks', 'mapMedia'
+    ];
+    
+    selects.forEach(selectId => {
+        const select = document.getElementById(selectId);
+        const isRequired = selectId === 'mapTitle';
+        select.innerHTML = isRequired 
+            ? '<option value="">-- 컬럼 선택 --</option>'
+            : '<option value="">-- 컬럼 선택 (선택사항) --</option>';
+        
+        data.columns.forEach(col => {
+            const option = document.createElement('option');
+            option.value = col;
+            option.textContent = col;
+            select.appendChild(option);
+        });
+        
+        // 자동 매핑 시도
+        const colLower = data.columns.map(c => c.toLowerCase());
+        if (selectId === 'mapTitle' && colLower.includes('title')) {
+            select.value = data.columns[colLower.indexOf('title')];
+        } else if (selectId === 'mapPriority' && colLower.includes('priority')) {
+            select.value = data.columns[colLower.indexOf('priority')];
+        } else if (selectId === 'mapSteps' && colLower.includes('steps')) {
+            select.value = data.columns[colLower.indexOf('steps')];
+        } else if (selectId === 'mapExpectedResult' && colLower.includes('expected_result')) {
+            select.value = data.columns[colLower.indexOf('expected_result')];
+        } else if (selectId === 'mapSection1' && (colLower.includes('section_1') || colLower.includes('section1'))) {
+            const idx = colLower.indexOf('section_1') >= 0 ? colLower.indexOf('section_1') : colLower.indexOf('section1');
+            select.value = data.columns[idx];
+        } else if (selectId === 'mapSection2' && (colLower.includes('section_2') || colLower.includes('section2'))) {
+            const idx = colLower.indexOf('section_2') >= 0 ? colLower.indexOf('section_2') : colLower.indexOf('section2');
+            select.value = data.columns[idx];
+        } else if (selectId === 'mapSection3' && (colLower.includes('section_3') || colLower.includes('section3'))) {
+            const idx = colLower.indexOf('section_3') >= 0 ? colLower.indexOf('section_3') : colLower.indexOf('section3');
+            select.value = data.columns[idx];
+        } else if (selectId === 'mapSection4' && (colLower.includes('section_4') || colLower.includes('section4'))) {
+            const idx = colLower.indexOf('section_4') >= 0 ? colLower.indexOf('section_4') : colLower.indexOf('section4');
+            select.value = data.columns[idx];
+        } else if (selectId === 'mapSectionFull' && (colLower.includes('section') || colLower.includes('section_path') || colLower.includes('section full') || colLower.includes('section_full'))) {
+            const candidates = ['section_full', 'section full', 'section_path', 'section path', 'section'];
+            const found = candidates.map(x => colLower.indexOf(x)).find(i => i >= 0);
+            if (found !== undefined) select.value = data.columns[found];
+        } else if (selectId === 'mapJiraLinks' && (colLower.includes('jira_links') || colLower.includes('jira links') || colLower.includes('jira'))) {
+            const candidates = ['jira_links', 'jira links', 'jira'];
+            const found = candidates.map(x => colLower.indexOf(x)).find(i => i >= 0);
+            if (found !== undefined) select.value = data.columns[found];
+        } else if (selectId === 'mapMedia' && (colLower.includes('media') || colLower.includes('attachments') || colLower.includes('attachment') || colLower.includes('image') || colLower.includes('video'))) {
+            const candidates = ['media', 'attachments', 'attachment', 'image', 'video'];
+            const found = candidates.map(x => colLower.indexOf(x)).find(i => i >= 0);
+            if (found !== undefined) select.value = data.columns[found];
+        }
+    });
+
+    onSectionFullMappingChanged();
+    applyImportSectionDepthConstraints();
+    
+    // 샘플 데이터 표시
+    const samplePreview = document.getElementById('sampleDataPreview');
+    let tableHtml = '<table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;"><thead><tr>';
+    
+    data.columns.forEach(col => {
+        tableHtml += `<th style="padding: 0.5rem; border: 1px solid #ddd; background: #f8f9fa; text-align: left;">${col}</th>`;
+    });
+    tableHtml += '</tr></thead><tbody>';
+    
+    data.sample_data.forEach(row => {
+        tableHtml += '<tr>';
+        data.columns.forEach(col => {
+            const val = row[col] || '-';
+            const truncated = val.length > 30 ? val.substring(0, 30) + '...' : val;
+            tableHtml += `<td style="padding: 0.5rem; border: 1px solid #ddd;">${truncated}</td>`;
+        });
+        tableHtml += '</tr>';
+    });
+    
+    tableHtml += '</tbody></table>';
+    samplePreview.innerHTML = tableHtml;
+}
+
+async function proceedToPreview() {
+    // 컬럼 매핑 수집
+    const columnMapping = {
+        title: document.getElementById('mapTitle').value,
+        priority: document.getElementById('mapPriority').value,
+        steps: document.getElementById('mapSteps').value,
+        expected_result: document.getElementById('mapExpectedResult').value,
+        section_full: document.getElementById('mapSectionFull').value,
+        section_1: document.getElementById('mapSection1').value,
+        section_2: document.getElementById('mapSection2').value,
+        section_3: document.getElementById('mapSection3').value,
+        section_4: document.getElementById('mapSection4').value,
+        jira_links: document.getElementById('mapJiraLinks').value,
+        media: document.getElementById('mapMedia').value
+    };
+    
+    // 필수 필드 확인
+    if (!columnMapping.title) {
+        alert('제목(Title) 컬럼은 필수입니다.');
+        return;
+    }
+    
+    // 섹션 필드 확인
+    const hasSectionMapping = columnMapping.section_full || columnMapping.section_1 || columnMapping.section_2 ||
+                              columnMapping.section_3 || columnMapping.section_4;
+    
+    if (!hasSectionMapping) {
+        alert('최소 1개의 섹션 컬럼을 매핑해주세요.');
+        return;
+    }
+    
+    // 파일과 매핑 정보 전송
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('column_mapping', JSON.stringify(columnMapping));
+    
+    try {
+        const res = await fetch(`/api/projects/${projectId}/cases/import/parse`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.error || '데이터 파싱 실패');
+        }
+        
+        const data = await res.json();
+        importPreviewData = data;
+        
+        // Step 3로 이동 (미리보기)
+        showFinalPreview(data);
+        
+    } catch (err) {
+        alert('데이터 처리 실패: ' + err.message);
+        console.error(err);
+    }
+}
+
+function showFinalPreview(data) {
+    document.getElementById('importStep2').style.display = 'none';
+    document.getElementById('importStep3').style.display = 'block';
+    
+    // 요약 정보
+    const summary = document.getElementById('previewSummary');
+    summary.innerHTML = `
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;">
+            <div>
+                <strong>총 행 수:</strong> ${data.total_rows}
+            </div>
+            <div style="color: #27ae60;">
+                <strong>유효 케이스:</strong> ${data.valid_cases}
+            </div>
+            <div style="color: #e74c3c;">
+                <strong>건너뛴 행:</strong> ${data.skipped_rows}
+            </div>
+            <div style="color: #3498db;">
+                <strong>생성될 섹션:</strong> ${data.section_names.length}개
+            </div>
+        </div>
+    `;
+    
+    // 테이블 채우기
+    const tbody = document.getElementById('previewTableBody');
+    tbody.innerHTML = '';
+    
+    data.cases.forEach(caseData => {
+        const row = document.createElement('tr');
+        row.style.borderBottom = '1px solid #eee';
+        
+        const truncate = (text, maxLen = 50) => {
+            if (!text) return '-';
+            return text.length > maxLen ? text.substring(0, maxLen) + '...' : text;
+        };
+        
+        // 섹션 경로 생성
+        const sectionPath = [
+            caseData.section_1,
+            caseData.section_2,
+            caseData.section_3,
+            caseData.section_4
+        ].filter(s => s).join(' > ');
+        
+        row.innerHTML = `
+            <td style="padding: 0.75rem;">${caseData.row_number}</td>
+            <td style="padding: 0.75rem; color: #666; font-size: 0.85rem;">${sectionPath}</td>
+            <td style="padding: 0.75rem; font-weight: 500;">${truncate(caseData.title, 60)}</td>
+            <td style="padding: 0.75rem;">
+                <span class="priority-badge priority-${caseData.priority}">${caseData.priority}</span>
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+function backToStep1() {
+    document.getElementById('importStep1').style.display = 'block';
+    document.getElementById('importStep2').style.display = 'none';
+}
+
+function backToStep2() {
+    document.getElementById('importStep2').style.display = 'block';
+    document.getElementById('importStep3').style.display = 'none';
+}
+
+async function confirmImport() {
+    if (!importPreviewData || !importPreviewData.cases) {
+        alert('Import할 데이터가 없습니다.');
+        return;
+    }
+    
+    // 최상위 섹션이 선택되었으면 모든 케이스의 섹션 정보 앞에 추가
+    const rootSectionId = document.getElementById('selectedRootSectionId').value;
+    let casesData = importPreviewData.cases;
+    
+    if (rootSectionId) {
+        // 최상위 섹션의 경로 가져오기
+        const rootSection = allSectionsForImport.find(s => s.id == rootSectionId);
+        if (rootSection) {
+            const rootPath = getRootSectionPath(rootSection);
+            
+            // 모든 케이스의 섹션 정보 앞에 최상위 섹션 경로 추가
+            casesData = importPreviewData.cases.map(caseData => {
+                const newCase = {...caseData};
+                
+                // 기존 섹션 정보를 뒤로 밀기
+                for (let i = 4; i >= 1; i--) {
+                    if (i <= 4 - rootPath.length) {
+                        newCase[`section_${i + rootPath.length}`] = caseData[`section_${i}`] || '';
+                    }
+                }
+                
+                // 최상위 섹션 경로 추가
+                rootPath.forEach((sectionName, idx) => {
+                    newCase[`section_${idx + 1}`] = sectionName;
+                });
+                
+                return newCase;
+            });
+        }
+    }
+    
+    try {
+        const res = await fetch(`/api/projects/${projectId}/cases/import/confirm`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                cases: casesData
+            })
+        });
+        
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.error || 'Import 실패');
+        }
+        
+        const result = await res.json();
+        
+        // Step 4로 이동
+        document.getElementById('importStep3').style.display = 'none';
+        document.getElementById('importStep4').style.display = 'block';
+        document.getElementById('importResultMessage').textContent = 
+            `${result.created_count}개의 케이스가 성공적으로 추가되었습니다.\n` +
+            `(${result.created_sections}개의 섹션 생성 또는 사용)`;
+        
+    } catch (err) {
+        alert('Import 실패: ' + err.message);
+        console.error(err);
+    }
+}
+
+// 섹션 선택 모달 관련 함수
+async function openRootSectionSelector() {
+    document.getElementById('rootSectionSelectorModal').style.display = 'block';
+    
+    // 섹션 목록 로드
+    if (allSectionsForImport.length === 0) {
+        try {
+            const res = await fetch(`/api/projects/${projectId}/sections`);
+            allSectionsForImport = await res.json();
+        } catch (err) {
+            console.error('섹션 로드 실패:', err);
+            alert('섹션 로드 실패: ' + err.message);
+            return;
+        }
+    }
+    
+    renderRootSectionList();
+}
+
+function closeRootSectionSelector() {
+    document.getElementById('rootSectionSelectorModal').style.display = 'none';
+}
+
+function renderRootSectionList(searchTerm = '') {
+    const container = document.getElementById('rootSectionList');
+    container.innerHTML = '';
+    
+    // 섹션 계층 구조 빌드
+    const buildSectionTree = (sections, parentId = null, depth = 0) => {
+        const filtered = sections.filter(s => s.parent_id === parentId);
+        
+        filtered.forEach(section => {
+            const searchLower = searchTerm.toLowerCase();
+            const nameMatch = section.name.toLowerCase().includes(searchLower);
+            
+            if (!searchTerm || nameMatch) {
+                const item = document.createElement('div');
+                item.className = 'section-list-item';
+                item.style.paddingLeft = `${depth * 1.5 + 0.5}rem`;
+                item.onclick = () => selectRootSection(section);
+                
+                const icon = depth === 0 ? '📂' : '📄';
+                
+                item.innerHTML = `
+                    <span>${icon}</span>
+                    <span>${section.name}</span>
+                `;
+                
+                container.appendChild(item);
+            }
+            
+            // 자식 섹션 재귀 렌더링
+            buildSectionTree(sections, section.id, depth + 1);
+        });
+    };
+    
+    buildSectionTree(allSectionsForImport);
+    
+    if (container.children.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #999; padding: 2rem;">섹션이 없습니다.</p>';
+    }
+}
+
+function filterSections() {
+    const searchTerm = document.getElementById('sectionSearchInput').value;
+    renderRootSectionList(searchTerm);
+}
+
+function selectRootSection(section) {
+    document.getElementById('selectedRootSectionId').value = section.id;
+    
+    // 섹션 경로 표시
+    const path = getRootSectionPath(section);
+    document.getElementById('selectedRootSectionName').value = path.join(' > ');
+    selectedRootSectionDepth = path.length;
+    applyImportSectionDepthConstraints();
+    
+    closeRootSectionSelector();
+}
+
+function getRootSectionPath(section) {
+    const path = [section.name];
+    let current = section;
+    
+    while (current.parent_id) {
+        const parent = allSectionsForImport.find(s => s.id === current.parent_id);
+        if (parent) {
+            path.unshift(parent.name);
+            current = parent;
+        } else {
+            break;
+        }
+    }
+    
+    return path;
+}
+
+function clearRootSection() {
+    document.getElementById('selectedRootSectionId').value = '';
+    document.getElementById('selectedRootSectionName').value = '';
+    selectedRootSectionDepth = 0;
+    applyImportSectionDepthConstraints();
+}
+
+function applyImportSectionDepthConstraints() {
+    // root depth에 따라 file에서 매핑 가능한 섹션 레벨 수 제한
+    const maxLevels = Math.max(0, 4 - (selectedRootSectionDepth || 0)); // 예: rootDepth=2 -> 2레벨만 허용
+    const ids = ['mapSection1', 'mapSection2', 'mapSection3', 'mapSection4'];
+    ids.forEach((id, idx) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const enable = (idx + 1) <= maxLevels;
+        el.disabled = !enable;
+        if (!enable) el.value = '';
+    });
+}
+
+function onSectionFullMappingChanged() {
+    const fullSel = document.getElementById('mapSectionFull');
+    const fullCol = fullSel ? fullSel.value : '';
+    const depthSelects = ['mapSection1', 'mapSection2', 'mapSection3', 'mapSection4'].map(id => document.getElementById(id)).filter(Boolean);
+    const previewEl = document.getElementById('sectionFullPreview');
+
+    if (fullCol) {
+        depthSelects.forEach(s => { s.value = ''; s.disabled = true; });
+
+        // 샘플 5행 기준으로 분해 프리뷰
+        try {
+            const rows = (importFileData && importFileData.sample_data) ? importFileData.sample_data : [];
+            const samples = rows.slice(0, 5).map(r => {
+                const raw = (r[fullCol] || '').toString();
+                const parts = raw.split('>').map(x => x.trim()).filter(Boolean).slice(0, 4);
+                return parts.join(' > ') || '(빈 값)';
+            });
+            if (previewEl) previewEl.textContent = samples.length ? `프리뷰: ${samples.join(' / ')}` : '';
+        } catch (e) {
+            if (previewEl) previewEl.textContent = '';
+        }
+    } else {
+        // 섹션 전체를 사용하지 않으면 depth 제약만 적용
+        depthSelects.forEach(s => { s.disabled = false; });
+        applyImportSectionDepthConstraints();
+        if (previewEl) previewEl.textContent = '';
+    }
+}
 </script>
+
+<!-- 편집 모드 단축키 가이드 -->
+<div id="editModeShortcutGuide">
+    <div class="shortcut-content">
+        <h4>
+            <span class="shortcut-toggle-header">
+                <span>⌨️ 편집 모드 단축키</span>
+                <button class="shortcut-collapse-btn" onclick="toggleShortcutGuide()" title="접기">−</button>
+            </span>
+        </h4>
+        <div class="shortcut-item">
+            <span class="shortcut-desc">편집 모드 토글</span>
+            <span class="shortcut-key">Ctrl + E</span>
+        </div>
+        <div class="shortcut-item">
+            <span class="shortcut-desc">케이스 이동</span>
+            <span class="shortcut-key">↑ / ↓</span>
+        </div>
+        <div class="shortcut-item">
+            <span class="shortcut-desc">편집 시작</span>
+            <span class="shortcut-key">Enter / F2</span>
+        </div>
+        <div class="shortcut-item">
+            <span class="shortcut-desc">편집 저장</span>
+            <span class="shortcut-key">Enter</span>
+        </div>
+        <div class="shortcut-item">
+            <span class="shortcut-desc">편집 취소</span>
+            <span class="shortcut-key">Esc</span>
+        </div>
+        <div class="shortcut-item">
+            <span class="shortcut-desc">위에 케이스 추가</span>
+            <span class="shortcut-key">Ctrl + ↑</span>
+        </div>
+        <div class="shortcut-item">
+            <span class="shortcut-desc">아래에 케이스 추가</span>
+            <span class="shortcut-key">Ctrl + ↓</span>
+        </div>
+        <div class="shortcut-item">
+            <span class="shortcut-desc">상세 편집</span>
+            <span class="shortcut-key">F4</span>
+        </div>
+        <div class="shortcut-item">
+            <span class="shortcut-desc">케이스 복제</span>
+            <span class="shortcut-key">Ctrl + D</span>
+        </div>
+        <div class="shortcut-item">
+            <span class="shortcut-desc">케이스 삭제</span>
+            <span class="shortcut-key">Ctrl + Del</span>
+        </div>
+    </div>
+    <button class="shortcut-toggle-btn" onclick="toggleShortcutGuide()" title="펼치기">+</button>
+</div>
+
 {% endblock %}
 
 

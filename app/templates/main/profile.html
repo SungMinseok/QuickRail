@@ -5,6 +5,30 @@
 {% block content %}
 <div style="max-width: 600px; margin: 0 auto;">
     <h2 style="margin-bottom: 2rem;">계정 정보</h2>
+
+    <!-- 프로필 이미지 -->
+    <div class="card" style="margin-bottom: 2rem;">
+        <h4 style="margin-bottom: 1rem;">프로필 이미지</h4>
+        <div style="display:flex; align-items:center; gap: 1rem; margin-bottom: 1rem;">
+            <img id="profileAvatarPreview"
+                 src="{{ url_for('api.profile_avatar') }}"
+                 onerror="this.style.display='none'; document.getElementById('profileAvatarFallback').style.display='flex';"
+                 style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 1px solid #ddd; background:#f5f5f5;"
+                 alt="avatar">
+            <div id="profileAvatarFallback"
+                 style="display:none; width: 80px; height: 80px; border-radius: 50%; background:#ecf0f1; border: 1px solid #ddd; align-items:center; justify-content:center; font-weight:700; color:#7f8c8d; font-size: 1.25rem;">
+                {{ (current_user.name[:1] if current_user.name else 'U') }}
+            </div>
+            <div style="flex:1;">
+                <input type="file" id="avatarFile" accept="image/*" class="form-control" onchange="previewAvatarFile()" />
+                <small style="color:#666; display:block; margin-top:0.25rem;">png/jpg/jpeg/gif 업로드 가능</small>
+                <div style="display:flex; gap:0.5rem; margin-top:0.75rem;">
+                    <button class="btn btn-primary" type="button" onclick="uploadAvatar()">업로드</button>
+                    <button class="btn btn-secondary" type="button" onclick="deleteAvatar()">삭제</button>
+                </div>
+            </div>
+        </div>
+    </div>
     
     <!-- 기본 정보 -->
     <div class="card" style="margin-bottom: 2rem;">
@@ -74,11 +98,166 @@
     </div>
     
     <div style="margin-top: 2rem;">
+        <button class="btn btn-primary" type="button" onclick="openActivityModal()">내 활동 내역</button>
         <a href="{{ url_for('main.projects') }}" class="btn btn-secondary">돌아가기</a>
     </div>
 </div>
 
+<!-- 내 활동 내역 모달 -->
+<div id="activityModal" class="modal" style="display:none;">
+    <div class="modal-content" style="max-width: 900px;">
+        <div class="modal-header">
+            <h3>내 활동 내역</h3>
+            <button class="close" onclick="closeActivityModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.75rem;">
+                <div style="color:#666; font-size:0.9rem;">최근 활동을 시간순으로 표시합니다.</div>
+                <button class="btn btn-secondary" type="button" onclick="loadMoreActivities()">더 보기</button>
+            </div>
+            <div id="activityList" style="display:flex; flex-direction:column; gap: 0.5rem;">
+                <!-- JS -->
+            </div>
+        </div>
+        <div class="modal-footer">
+            <div style="color:#666; font-size:0.9rem;">
+                <span id="activityCountText">0</span>
+            </div>
+            <button class="btn btn-secondary" onclick="closeActivityModal()">닫기</button>
+        </div>
+    </div>
+</div>
+
 <script>
+let activityOffset = 0;
+const activityLimit = 50;
+
+function previewAvatarFile() {
+    const input = document.getElementById('avatarFile');
+    const file = input.files && input.files[0];
+    if (!file) return;
+
+    const url = URL.createObjectURL(file);
+    const img = document.getElementById('profileAvatarPreview');
+    const fallback = document.getElementById('profileAvatarFallback');
+    img.src = url;
+    img.style.display = 'block';
+    fallback.style.display = 'none';
+}
+
+async function uploadAvatar() {
+    const input = document.getElementById('avatarFile');
+    const file = input.files && input.files[0];
+    if (!file) {
+        alert('업로드할 파일을 선택해주세요.');
+        return;
+    }
+
+    const form = new FormData();
+    form.append('file', file);
+
+    try {
+        const res = await fetch('/api/profile/avatar', { method: 'POST', body: form });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            alert(data.error || '프로필 이미지 업로드 실패');
+            return;
+        }
+        alert('프로필 이미지가 저장되었습니다.');
+        location.reload();
+    } catch (err) {
+        alert('오류 발생: ' + err);
+    }
+}
+
+async function deleteAvatar() {
+    if (!confirm('프로필 이미지를 삭제하시겠습니까?')) return;
+    try {
+        const res = await fetch('/api/profile/avatar', { method: 'DELETE' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            alert(data.error || '프로필 이미지 삭제 실패');
+            return;
+        }
+        alert('프로필 이미지가 삭제되었습니다.');
+        location.reload();
+    } catch (err) {
+        alert('오류 발생: ' + err);
+    }
+}
+
+function openActivityModal() {
+    document.getElementById('activityModal').style.display = 'block';
+    activityOffset = 0;
+    document.getElementById('activityList').innerHTML = '';
+    loadMoreActivities();
+}
+
+function closeActivityModal() {
+    document.getElementById('activityModal').style.display = 'none';
+}
+
+function formatTime(iso) {
+    if (!iso) return '';
+    try {
+        const d = new Date(iso);
+        return d.toLocaleString();
+    } catch {
+        return iso;
+    }
+}
+
+function renderActivityItem(item) {
+    const desc = item.description || item.action;
+    const time = formatTime(item.created_at);
+    return `
+        <div style="background:#fff; border:1px solid #eee; border-radius:6px; padding:0.75rem 1rem; display:flex; justify-content:space-between; gap:1rem;">
+            <div style="flex:1; min-width:0;">
+                <div style="font-weight:600; margin-bottom:0.25rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(desc)}</div>
+                <div style="color:#666; font-size:0.85rem;">
+                    <span>${escapeHtml(item.action || '')}</span>
+                    ${item.project_id ? `<span> | project_id=${item.project_id}</span>` : ''}
+                    ${item.entity_type ? `<span> | ${escapeHtml(item.entity_type)}${item.entity_id ? `#${item.entity_id}` : ''}</span>` : ''}
+                </div>
+            </div>
+            <div style="color:#666; font-size:0.85rem; white-space:nowrap;">${escapeHtml(time)}</div>
+        </div>
+    `;
+}
+
+function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    const map = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'};
+    return String(text).replace(/[&<>"']/g, m => map[m]);
+}
+
+async function loadMoreActivities() {
+    try {
+        const res = await fetch(`/api/profile/activity?limit=${activityLimit}&offset=${activityOffset}`);
+        const data = await res.json();
+        const items = data.items || [];
+
+        const list = document.getElementById('activityList');
+        if (activityOffset === 0 && items.length === 0) {
+            list.innerHTML = '<div style="text-align:center; color:#999; padding:2rem;">활동 내역이 없습니다.</div>';
+            document.getElementById('activityCountText').textContent = '0건';
+            return;
+        }
+
+        list.insertAdjacentHTML('beforeend', items.map(renderActivityItem).join(''));
+        activityOffset += items.length;
+        document.getElementById('activityCountText').textContent = `${activityOffset}건 표시 중`;
+    } catch (err) {
+        alert('활동 내역 로드 실패: ' + err);
+    }
+}
+
+// 모달 외부 클릭 닫기
+window.addEventListener('click', (event) => {
+    const modal = document.getElementById('activityModal');
+    if (event.target === modal) closeActivityModal();
+});
+
 async function changeName(event) {
     event.preventDefault();
     
@@ -174,4 +353,5 @@ async function deleteAccount() {
 }
 </script>
 {% endblock %}
+
 

@@ -1,180 +1,52 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-
-# C extensions
-*.c
-*.cpp
-
-# Distribution / packaging
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+venv/
+env/
+ENV/
+.venv
 
-# PyInstaller
-*.manifest
-*.spec
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-
-# Flask stuff:
+# Flask
 instance/
 .webassets-cache
+
+# Database
 *.db
 *.sqlite
 *.sqlite3
 
-# Scrapy stuff:
-.scrapy
+# Backups
+backups/
 
-# Sphinx documentation
-docs/_build/
+# Logs
+logs/
+*.log
 
-# PyBuilder
-target/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
-profile_default/
-ipython_config.py
-
-# pyenv
-.python-version
-
-# pipenv
-Pipfile.lock
-
-# PEP 582
-__pypackages__/
-
-# Celery stuff
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath parsed files
-*.sage.py
-
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# IDEs
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-.project
-.pydevproject
-*.sublime-project
-*.sublime-workspace
 
 # OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
-*.bak
-*.tmp
 
-# Logs
-*.log
-logs/
-log/
-
-# Uploads and attachments
+# Uploads
 uploads/
-attachments/
-static/uploads/
-
-# Temporary files
 temp/
-tmp/
-*.temp
-*.tmp
 
-# Local configuration
-config_local.py
-local_settings.py
+# Local import test files
+test_import.*
+
+# Environment
+.env
 .env.local
-.env.*.local
+.flaskenv
 
-# Migration backup
+# Migration
 migrations/versions/*.pyc
-
-# Alembic
-alembic.ini.local
-
-# Node modules (if using npm for frontend)
-node_modules/
-package-lock.json
-yarn.lock
-
-# Compiled assets
-static/dist/
-static/.webassets-cache/
-
-# Test files
-test_*.py
-*_test.py
-tests/__pycache__/
-
-

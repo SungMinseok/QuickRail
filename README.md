@@ -69,7 +69,7 @@ pip install -r requirements.txt
 FLASK_APP=run.py
 FLASK_ENV=development
 SECRET_KEY=your-secret-key-change-in-production
-DATABASE_URL=sqlite:///quickrail.db
+DATABASE_URL=sqlite:///instance/quickrail.db
 ```
 
 ### 3. 데이터베이스 초기화

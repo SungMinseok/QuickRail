@@ -11,10 +11,11 @@
         {% endif %}
     </div>
     
-    <!-- 프로젝트 생성 폼 (숨김) -->
+    <!-- 프로젝트 생성/수정 폼 (숨김) -->
     <div id="createProjectForm" class="card" style="display: none; margin-bottom: 2rem;">
-        <h3 style="margin-bottom: 1rem;">새 프로젝트 생성</h3>
-        <form id="projectForm" onsubmit="createProject(event)">
+        <h3 id="formTitle" style="margin-bottom: 1rem;">새 프로젝트 생성</h3>
+        <form id="projectForm" onsubmit="saveProject(event)">
+            <input type="hidden" id="projectId" value="">
             <div class="form-group">
                 <label class="form-label">프로젝트 이름</label>
                 <input type="text" id="projectName" name="name" class="form-control" required>
@@ -24,8 +25,8 @@
                 <textarea id="projectDescription" name="description" class="form-control"></textarea>
             </div>
             <div style="display: flex; gap: 1rem;">
-                <button type="submit" class="btn btn-success">생성</button>
-                <button type="button" class="btn btn-secondary" onclick="hideCreateProject()">취소</button>
+                <button type="submit" class="btn btn-success" id="submitBtn">생성</button>
+                <button type="button" class="btn btn-secondary" onclick="hideProjectForm()">취소</button>
             </div>
         </form>
     </div>
@@ -41,10 +42,15 @@
             <div style="display: flex; gap: 0.5rem; font-size: 0.85rem; color: #999;">
                 <span>생성: {{ project.created_at.strftime('%Y-%m-%d') }}</span>
             </div>
-            <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+            <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <a href="{{ url_for('main.dashboard', project_id=project.id) }}" class="btn btn-secondary btn-sm" onclick="event.stopPropagation()">대시보드</a>
                 <a href="{{ url_for('main.cases', project_id=project.id) }}" class="btn btn-primary btn-sm" onclick="event.stopPropagation()">케이스</a>
                 <a href="{{ url_for('main.runs', project_id=project.id) }}" class="btn btn-success btn-sm" onclick="event.stopPropagation()">런</a>
-                <a href="{{ url_for('main.dashboard', project_id=project.id) }}" class="btn btn-secondary btn-sm" onclick="event.stopPropagation()">리포트</a>
+                {% if current_user.role in ['admin', 'author'] %}
+                <button class="btn btn-sm" onclick="event.stopPropagation(); editProject({{ project.id }}, '{{ project.name }}', '{{ project.description or '' }}')" style="background: #f39c12; color: white;" title="수정">수정</button>
+                <button class="btn btn-sm" onclick="event.stopPropagation(); copyProject({{ project.id }})" style="background: #9b59b6; color: white;" title="복제">복제</button>
+                <button class="btn btn-sm" onclick="event.stopPropagation(); deleteProject({{ project.id }}, '{{ project.name }}')" style="background: #e74c3c; color: white;" title="삭제">삭제</button>
+                {% endif %}
             </div>
         </div>
         {% endfor %}
@@ -62,23 +68,41 @@
 
 <script>
 function showCreateProject() {
+    document.getElementById('formTitle').textContent = '새 프로젝트 생성';
+    document.getElementById('submitBtn').textContent = '생성';
+    document.getElementById('projectId').value = '';
+    document.getElementById('projectForm').reset();
     document.getElementById('createProjectForm').style.display = 'block';
     document.getElementById('projectName').focus();
 }
 
-function hideCreateProject() {
+function hideProjectForm() {
     document.getElementById('createProjectForm').style.display = 'none';
     document.getElementById('projectForm').reset();
 }
 
-function createProject(event) {
+function editProject(projectId, name, description) {
+    document.getElementById('formTitle').textContent = '프로젝트 수정';
+    document.getElementById('submitBtn').textContent = '수정';
+    document.getElementById('projectId').value = projectId;
+    document.getElementById('projectName').value = name;
+    document.getElementById('projectDescription').value = description;
+    document.getElementById('createProjectForm').style.display = 'block';
+    document.getElementById('projectName').focus();
+}
+
+function saveProject(event) {
     event.preventDefault();
     
+    const projectId = document.getElementById('projectId').value;
     const name = document.getElementById('projectName').value;
     const description = document.getElementById('projectDescription').value;
     
-    fetch('/api/projects', {
-        method: 'POST',
+    const url = projectId ? `/api/projects/${projectId}` : '/api/projects';
+    const method = projectId ? 'PUT' : 'POST';
+    
+    fetch(url, {
+        method: method,
         headers: {
             'Content-Type': 'application/json'
         },
@@ -91,7 +115,7 @@ function createProject(event) {
         if (response.ok) {
             return response.json();
         }
-        throw new Error('프로젝트 생성 실패');
+        throw new Error(projectId ? '프로젝트 수정 실패' : '프로젝트 생성 실패');
     })
     .then(data => {
         location.reload();
@@ -99,6 +123,59 @@ function createProject(event) {
     .catch(error => {
         alert(error.message);
     });
+}
+
+async function copyProject(projectId) {
+    if (!confirm('이 프로젝트를 복제하시겠습니까?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/projects/${projectId}/copy`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            alert('프로젝트가 복제되었습니다.');
+            location.reload();
+        } else {
+            const error = await response.json();
+            throw new Error(error.error || '프로젝트 복제 실패');
+        }
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function deleteProject(projectId, projectName) {
+    if (!confirm(`"${projectName}" 프로젝트를 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/projects/${projectId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.status === 403) {
+            const error = await response.json();
+            alert(error.error || 'Super Admin 계정만 프로젝트를 삭제할 수 있습니다.');
+            return;
+        }
+        
+        if (response.ok) {
+            alert('프로젝트가 삭제되었습니다.');
+            location.reload();
+        } else {
+            const error = await response.json();
+            throw new Error(error.error || '프로젝트 삭제 실패');
+        }
+    } catch (error) {
+        alert(error.message);
+    }
 }
 </script>
 {% endblock %}

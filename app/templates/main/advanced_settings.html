@@ -1,0 +1,525 @@
+{% extends "base.html" %}
+
+{% block title %}고급 설정 - QuickRail{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 1200px; margin: 2rem auto; padding: 0 1rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <h2 style="margin: 0;">🔐 고급 설정</h2>
+        <a href="{{ url_for('main.settings') }}" class="btn btn-secondary" style="padding: 0.5rem 1rem;">
+            ← 설정으로 돌아가기
+        </a>
+    </div>
+    
+    <!-- API 키 관리 (Super Admin만) -->
+    <div id="apikeySettings" class="settings-section">
+        <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem;">
+            <h3 style="margin-top: 0;">OpenAI API 키 관리</h3>
+            <p style="color: #666; margin-bottom: 0;">
+                번역 기능에 사용되는 OpenAI API 키를 관리합니다.<br>
+                <strong>⚠️ Super Admin만 접근 가능합니다.</strong>
+            </p>
+        </div>
+        
+        <!-- 현재 활성 API 키 -->
+        <div style="background: #e8f5e9; padding: 1.5rem; border-radius: 8px; border: 2px solid #4caf50; margin-bottom: 2rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h4 style="margin: 0; color: #2e7d32;">✓ 현재 활성 API 키</h4>
+                <button class="btn btn-primary" onclick="editAPIKey({{ active_api_key.id if active_api_key else 'null' }})" style="padding: 0.5rem 1rem;">
+                    편집
+                </button>
+            </div>
+            {% if active_api_key %}
+            <div style="background: white; padding: 1rem; border-radius: 4px; margin-bottom: 0.5rem;">
+                <strong>이름:</strong> {{ active_api_key.name }}
+            </div>
+            <div style="background: white; padding: 1rem; border-radius: 4px; margin-bottom: 0.5rem;">
+                <strong>API 키:</strong> <code>{{ active_api_key.api_key[:10] }}...{{ active_api_key.api_key[-4:] }}</code>
+            </div>
+            <div style="background: white; padding: 1rem; border-radius: 4px; margin-bottom: 0.5rem;">
+                <strong>마지막 사용:</strong> {{ active_api_key.last_used_at.strftime('%Y-%m-%d %H:%M') if active_api_key.last_used_at else '사용 기록 없음' }}
+            </div>
+            <div style="margin-top: 1rem;">
+                <button class="btn btn-info" onclick="checkAPIUsage()" style="padding: 0.5rem 1rem;">
+                    📊 사용량 확인
+                </button>
+            </div>
+            {% else %}
+            <div style="background: white; padding: 1rem; border-radius: 4px; color: #999;">
+                활성화된 API 키가 없습니다. API 키를 추가하고 활성화하세요.
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- 사용량 통계 -->
+        <div id="usageStats" style="background: #fff3cd; padding: 1.5rem; border-radius: 8px; border: 1px solid #ffc107; margin-bottom: 2rem; display: none;">
+            <h4 style="margin-top: 0;">📊 API 사용량 통계</h4>
+            <div id="usageContent" style="font-family: monospace;">
+                로딩 중...
+            </div>
+        </div>
+        
+        <!-- API 키 목록 -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h4>저장된 API 키</h4>
+            <button class="btn btn-success" onclick="createNewAPIKey()" style="padding: 0.5rem 1rem;">
+                + 새 API 키 추가
+            </button>
+        </div>
+        
+        <div style="background: white; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead style="background: #f5f5f5;">
+                    <tr>
+                        <th style="padding: 1rem; text-align: left; border-bottom: 1px solid #ddd;">이름</th>
+                        <th style="padding: 1rem; text-align: left; border-bottom: 1px solid #ddd;">API 키</th>
+                        <th style="padding: 1rem; text-align: left; border-bottom: 1px solid #ddd;">상태</th>
+                        <th style="padding: 1rem; text-align: left; border-bottom: 1px solid #ddd;">마지막 사용</th>
+                        <th style="padding: 1rem; text-align: center; border-bottom: 1px solid #ddd;">작업</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for key in api_keys %}
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 1rem;">{{ key.name }}</td>
+                        <td style="padding: 1rem;"><code>{{ key.api_key[:10] }}...{{ key.api_key[-4:] }}</code></td>
+                        <td style="padding: 1rem;">
+                            {% if key.is_active %}
+                            <span style="background: #4caf50; color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.85rem;">활성</span>
+                            {% else %}
+                            <span style="background: #999; color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.85rem;">비활성</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 1rem; color: #666;">{{ key.last_used_at.strftime('%Y-%m-%d %H:%M') if key.last_used_at else '-' }}</td>
+                        <td style="padding: 1rem; text-align: center;">
+                            <button class="btn btn-sm btn-primary" onclick="editAPIKey({{ key.id }})" style="padding: 0.25rem 0.75rem; margin-right: 0.5rem;">편집</button>
+                            {% if not key.is_active %}
+                            <button class="btn btn-sm btn-success" onclick="activateAPIKey({{ key.id }})" style="padding: 0.25rem 0.75rem; margin-right: 0.5rem;">활성화</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteAPIKey({{ key.id }})" style="padding: 0.25rem 0.75rem;">삭제</button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not api_keys %}
+                    <tr>
+                        <td colspan="5" style="padding: 2rem; text-align: center; color: #999;">
+                            저장된 API 키가 없습니다.
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- API 키 편집 모달 -->
+<div id="apikeyModal" class="modal">
+    <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-header">
+            <h3 id="apikeyModalTitle">API 키 편집</h3>
+            <button class="close" onclick="closeAPIKeyModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="apikeyForm">
+                <input type="hidden" id="apikeyId">
+                
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: bold;">키 이름</label>
+                    <input type="text" id="apikeyName" class="form-control" required 
+                           placeholder="예: Production, Test" 
+                           style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                    <small style="color: #666;">구분하기 쉬운 이름을 입력하세요</small>
+                </div>
+                
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: bold;">OpenAI API 키</label>
+                    <input type="password" id="apikeyValue" class="form-control" required 
+                           placeholder="sk-..." 
+                           style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-family: monospace;">
+                    <small style="color: #666;">
+                        OpenAI API 키를 입력하세요 (sk-로 시작)<br>
+                        <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI API 키 발급 →</a>
+                    </small>
+                </div>
+                
+                <div style="background: #fff3cd; padding: 1rem; border-radius: 4px; margin-bottom: 1.5rem; border: 1px solid #ffc107;">
+                    <strong>⚠️ 보안 주의사항</strong>
+                    <ul style="margin: 0.5rem 0 0 1.5rem; padding: 0;">
+                        <li>API 키는 암호화되어 저장됩니다</li>
+                        <li>Super Admin만 조회 및 수정 가능합니다</li>
+                        <li>API 키는 절대 외부에 공유하지 마세요</li>
+                    </ul>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeAPIKeyModal()">취소</button>
+                    <button type="submit" class="btn btn-primary">저장</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.btn-sm {
+    font-size: 0.85rem;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: auto;
+    padding: 0;
+    border: 1px solid #888;
+    width: 90%;
+    max-width: 600px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.modal-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    margin: 0;
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.close {
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
+    border: none;
+    background: none;
+    cursor: pointer;
+}
+
+.close:hover,
+.close:focus {
+    color: #000;
+}
+
+/* Toast 알림 스타일 */
+.toast-container {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.toast {
+    background: #2ecc71;
+    color: white;
+    padding: 1rem 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    min-width: 300px;
+    max-width: 400px;
+    animation: slideInRight 0.3s ease-out;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-weight: 500;
+}
+
+.toast.error {
+    background: #e74c3c;
+}
+
+.toast.warning {
+    background: #f39c12;
+}
+
+.toast.info {
+    background: #3498db;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutRight {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+.toast.hiding {
+    animation: slideOutRight 0.3s ease-out forwards;
+}
+</style>
+
+<!-- Toast 알림 컨테이너 -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// Toast 알림 함수
+function showToast(message, type = 'success', duration = 3000) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    // 아이콘 설정
+    let icon = '✓';
+    if (type === 'error') icon = '✕';
+    else if (type === 'warning') icon = '⚠';
+    else if (type === 'info') icon = 'ℹ';
+    
+    toast.innerHTML = `
+        <span style="font-size: 1.2rem;">${icon}</span>
+        <span>${message}</span>
+    `;
+    
+    container.appendChild(toast);
+    
+    // 자동 제거
+    setTimeout(() => {
+        toast.classList.add('hiding');
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 300);
+    }, duration);
+}
+
+// ============================================================
+// API 키 관리 함수
+// ============================================================
+
+function createNewAPIKey() {
+    document.getElementById('apikeyModalTitle').textContent = '새 API 키 추가';
+    document.getElementById('apikeyId').value = '';
+    document.getElementById('apikeyName').value = '';
+    document.getElementById('apikeyValue').value = '';
+    document.getElementById('apikeyModal').classList.add('show');
+}
+
+async function editAPIKey(keyId) {
+    try {
+        const res = await fetch(`/api/api-keys/${keyId}`);
+        if (!res.ok) throw new Error('API 키 로드 실패');
+        
+        const key = await res.json();
+        
+        document.getElementById('apikeyModalTitle').textContent = 'API 키 편집';
+        document.getElementById('apikeyId').value = key.id;
+        document.getElementById('apikeyName').value = key.name;
+        document.getElementById('apikeyValue').value = key.api_key;
+        document.getElementById('apikeyModal').classList.add('show');
+    } catch (err) {
+        showToast('API 키 로드 실패: ' + err.message, 'error');
+    }
+}
+
+async function activateAPIKey(keyId) {
+    if (!confirm('이 API 키를 활성화하시겠습니까?')) return;
+    
+    try {
+        const res = await fetch(`/api/api-keys/${keyId}/activate`, {
+            method: 'POST'
+        });
+        
+        if (!res.ok) throw new Error('활성화 실패');
+        
+        showToast('API 키가 활성화되었습니다.', 'success');
+        setTimeout(() => location.reload(), 1000);
+    } catch (err) {
+        showToast('활성화 실패: ' + err.message, 'error');
+    }
+}
+
+async function deleteAPIKey(keyId) {
+    if (!confirm('이 API 키를 삭제하시겠습니까?\n\n삭제된 키는 복구할 수 없습니다.')) return;
+    
+    try {
+        const res = await fetch(`/api/api-keys/${keyId}`, {
+            method: 'DELETE'
+        });
+        
+        if (!res.ok) throw new Error('삭제 실패');
+        
+        showToast('API 키가 삭제되었습니다.', 'success');
+        setTimeout(() => location.reload(), 1000);
+    } catch (err) {
+        showToast('삭제 실패: ' + err.message, 'error');
+    }
+}
+
+function closeAPIKeyModal() {
+    document.getElementById('apikeyModal').classList.remove('show');
+}
+
+// API 키 폼 제출
+document.getElementById('apikeyForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const keyId = document.getElementById('apikeyId').value;
+    const data = {
+        name: document.getElementById('apikeyName').value,
+        api_key: document.getElementById('apikeyValue').value
+    };
+    
+    try {
+        const url = keyId ? `/api/api-keys/${keyId}` : '/api/api-keys';
+        const method = keyId ? 'PUT' : 'POST';
+        
+        const res = await fetch(url, {
+            method: method,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.error || '저장 실패');
+        }
+        
+        showToast('API 키가 저장되었습니다.', 'success');
+        setTimeout(() => location.reload(), 1000);
+    } catch (err) {
+        showToast('저장 실패: ' + err.message, 'error');
+    }
+});
+
+// API 사용량 확인
+async function checkAPIUsage() {
+    const usageDiv = document.getElementById('usageStats');
+    const contentDiv = document.getElementById('usageContent');
+    
+    usageDiv.style.display = 'block';
+    contentDiv.innerHTML = '로딩 중...';
+    
+    try {
+        const res = await fetch('/api/api-keys/usage');
+        if (!res.ok) throw new Error('사용량 조회 실패');
+        
+        const data = await res.json();
+        
+        let html = '<div style="line-height: 1.8;">';
+        
+        // QuickRail 사용량 통계
+        html += '<h5 style="margin: 0 0 1rem 0; color: #1976d2;">📊 QuickRail 번역 사용량</h5>';
+        
+        // 전체 사용량
+        html += '<div style="background: #e3f2fd; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">';
+        html += '<div style="font-weight: bold; margin-bottom: 0.5rem;">전체 누적</div>';
+        html += `<div>• 총 요청: ${data.quickrail_usage.total.requests.toLocaleString()}회</div>`;
+        html += `<div>• 총 토큰: ${data.quickrail_usage.total.tokens.toLocaleString()} tokens</div>`;
+        html += `<div>• 누적 비용: $${data.quickrail_usage.total.cost.toFixed(4)}</div>`;
+        html += '</div>';
+        
+        // 최근 30일
+        html += '<div style="background: #fff3e0; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">';
+        html += '<div style="font-weight: bold; margin-bottom: 0.5rem;">최근 30일</div>';
+        html += `<div>• 요청 수: ${data.quickrail_usage.last_30_days.requests.toLocaleString()}회</div>`;
+        html += `<div>• 토큰: ${data.quickrail_usage.last_30_days.tokens.toLocaleString()} tokens</div>`;
+        html += `<div>• 비용: $${data.quickrail_usage.last_30_days.cost.toFixed(4)}</div>`;
+        html += '</div>';
+        
+        // 최근 7일
+        html += '<div style="background: #e8f5e9; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">';
+        html += '<div style="font-weight: bold; margin-bottom: 0.5rem;">최근 7일</div>';
+        html += `<div>• 요청 수: ${data.quickrail_usage.last_7_days.requests.toLocaleString()}회</div>`;
+        html += `<div>• 토큰: ${data.quickrail_usage.last_7_days.tokens.toLocaleString()} tokens</div>`;
+        html += `<div>• 비용: $${data.quickrail_usage.last_7_days.cost.toFixed(4)}</div>`;
+        html += '</div>';
+        
+        // 일별 상세 통계
+        if (data.daily_breakdown && data.daily_breakdown.length > 0) {
+            html += '<hr style="margin: 1rem 0;">';
+            html += '<h6 style="margin: 0.5rem 0;">일별 사용량 (최근 7일)</h6>';
+            html += '<table style="width: 100%; margin-top: 0.5rem; border-collapse: collapse; font-size: 0.9rem;">';
+            html += '<tr style="background: #f5f5f5;"><th style="padding: 0.5rem; text-align: left;">날짜</th><th style="padding: 0.5rem; text-align: right;">요청</th><th style="padding: 0.5rem; text-align: right;">토큰</th><th style="padding: 0.5rem; text-align: right;">비용</th></tr>';
+            data.daily_breakdown.forEach(day => {
+                html += `<tr style="border-bottom: 1px solid #eee;">`;
+                html += `<td style="padding: 0.5rem;">${day.date}</td>`;
+                html += `<td style="padding: 0.5rem; text-align: right;">${day.requests.toLocaleString()}</td>`;
+                html += `<td style="padding: 0.5rem; text-align: right;">${day.tokens.toLocaleString()}</td>`;
+                html += `<td style="padding: 0.5rem; text-align: right;">$${day.cost.toFixed(4)}</td>`;
+                html += `</tr>`;
+            });
+            html += '</table>';
+        }
+        
+        // 언어별 통계
+        if (data.language_breakdown && data.language_breakdown.length > 0) {
+            html += '<hr style="margin: 1rem 0;">';
+            html += '<h6 style="margin: 0.5rem 0;">언어별 사용량 (최근 30일)</h6>';
+            html += '<table style="width: 100%; margin-top: 0.5rem; border-collapse: collapse; font-size: 0.9rem;">';
+            html += '<tr style="background: #f5f5f5;"><th style="padding: 0.5rem; text-align: left;">번역 방향</th><th style="padding: 0.5rem; text-align: right;">요청</th><th style="padding: 0.5rem; text-align: right;">토큰</th></tr>';
+            data.language_breakdown.forEach(lang => {
+                html += `<tr style="border-bottom: 1px solid #eee;">`;
+                html += `<td style="padding: 0.5rem;">${lang.direction}</td>`;
+                html += `<td style="padding: 0.5rem; text-align: right;">${lang.requests.toLocaleString()}</td>`;
+                html += `<td style="padding: 0.5rem; text-align: right;">${lang.tokens.toLocaleString()}</td>`;
+                html += `</tr>`;
+            });
+            html += '</table>';
+        }
+        
+        // 참고 사항
+        html += '<hr style="margin: 1rem 0;">';
+        html += `<div style="font-size: 0.85rem; color: #666;">`;
+        html += `<strong>참고:</strong> ${data.note}`;
+        html += `</div>`;
+        
+        html += '</div>';
+        contentDiv.innerHTML = html;
+    } catch (err) {
+        contentDiv.innerHTML = `<div style="color: #d32f2f;">❌ ${err.message}</div>`;
+    }
+}
+
+// 모달 외부 클릭 시 닫기
+document.getElementById('apikeyModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeAPIKeyModal();
+    }
+});
+</script>
+{% endblock %}
+
+

@@ -1,0 +1,1096 @@
+{% extends "base.html" %}
+
+{% block title %}설정 - QuickRail{% endblock %}
+
+{% block content %}
+<!-- Toast 알림 컨테이너 -->
+<div class="toast-container" id="toastContainer"></div>
+
+<div class="container" style="max-width: 1200px; margin: 2rem auto; padding: 0 1rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <h2 style="margin: 0;">⚙️ 설정</h2>
+        <button class="btn btn-secondary" onclick="goToAdvancedSettings()" style="padding: 0.5rem 1rem;">
+            🔐 고급 설정
+        </button>
+    </div>
+    
+    <!-- 탭 메뉴 -->
+    <div style="border-bottom: 2px solid #e0e0e0; margin-bottom: 2rem;">
+        <div style="display: flex; gap: 1rem;">
+            <button class="tab-btn active" onclick="switchTab('translation')" id="tabTranslation">
+                🌐 번역 프롬프트
+            </button>
+            <button class="tab-btn" onclick="switchTab('summary')" id="tabSummary">
+                📝 요약 프롬프트
+            </button>
+            <button class="tab-btn" onclick="switchTab('jira')" id="tabJira">
+                🐛 Jira 원버튼
+            </button>
+        </div>
+    </div>
+    
+    
+    <!-- 번역 프롬프트 설정 -->
+    <div id="translationSettings" class="settings-section">
+        <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem;">
+            <h3 style="margin-top: 0;">번역 프롬프트 관리</h3>
+            <p style="color: #666; margin-bottom: 0;">
+                OpenAI API를 사용한 케이스 번역 시 적용되는 프롬프트를 설정합니다.<br>
+                활성화된 프롬프트가 모든 번역에 적용됩니다.
+            </p>
+        </div>
+        
+        <!-- 현재 활성 프롬프트 -->
+        <div style="background: #e8f5e9; padding: 1.5rem; border-radius: 8px; border: 2px solid #4caf50; margin-bottom: 2rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h4 style="margin: 0; color: #2e7d32;">✓ 현재 활성 프롬프트</h4>
+                {% if current_user.role in ['Super Admin', 'admin'] %}
+                <button class="btn btn-primary" onclick="editPrompt({{ active_prompt.id if active_prompt else 'null' }})" style="padding: 0.5rem 1rem;">
+                    편집
+                </button>
+                {% endif %}
+            </div>
+            {% if active_prompt %}
+            <div style="background: white; padding: 1rem; border-radius: 4px; margin-bottom: 0.5rem;">
+                <strong>이름:</strong> {{ active_prompt.name }}
+            </div>
+            <div style="background: white; padding: 1rem; border-radius: 4px; margin-bottom: 0.5rem;">
+                <strong>시스템 프롬프트:</strong>
+                <pre style="margin: 0.5rem 0 0 0; white-space: pre-wrap; font-family: monospace; background: #f5f5f5; padding: 0.5rem; border-radius: 4px;">{{ active_prompt.system_prompt }}</pre>
+            </div>
+            <div style="background: white; padding: 1rem; border-radius: 4px;">
+                <strong>사용자 프롬프트 템플릿:</strong>
+                <pre style="margin: 0.5rem 0 0 0; white-space: pre-wrap; font-family: monospace; background: #f5f5f5; padding: 0.5rem; border-radius: 4px;">{{ active_prompt.user_prompt_template }}</pre>
+            </div>
+            <div style="margin-top: 1rem; font-size: 0.9rem; color: #666;">
+                <span>최종 수정: {{ active_prompt.updated_at.strftime('%Y-%m-%d %H:%M') }}</span>
+            </div>
+            {% else %}
+            <div style="background: white; padding: 1rem; border-radius: 4px; color: #999;">
+                활성화된 프롬프트가 없습니다. 기본 프롬프트를 생성하거나 기존 프롬프트를 활성화하세요.
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- 프롬프트 목록 -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h4>저장된 프롬프트</h4>
+            {% if current_user.role in ['Super Admin', 'admin'] %}
+            <button class="btn btn-success" onclick="createNewPrompt()" style="padding: 0.5rem 1rem;">
+                + 새 프롬프트 추가
+            </button>
+            {% endif %}
+        </div>
+        
+        <div style="background: white; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead style="background: #f5f5f5;">
+                    <tr>
+                        <th style="padding: 1rem; text-align: left; border-bottom: 1px solid #ddd;">이름</th>
+                        <th style="padding: 1rem; text-align: left; border-bottom: 1px solid #ddd;">상태</th>
+                        <th style="padding: 1rem; text-align: left; border-bottom: 1px solid #ddd;">최종 수정</th>
+                        {% if current_user.role in ['Super Admin', 'admin'] %}
+                        <th style="padding: 1rem; text-align: center; border-bottom: 1px solid #ddd;">작업</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for prompt in prompts %}
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 1rem;">{{ prompt.name }}</td>
+                        <td style="padding: 1rem;">
+                            {% if prompt.is_active %}
+                            <span style="background: #4caf50; color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.85rem;">활성</span>
+                            {% else %}
+                            <span style="background: #999; color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.85rem;">비활성</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 1rem; color: #666;">{{ prompt.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        {% if current_user.role in ['Super Admin', 'admin'] %}
+                        <td style="padding: 1rem; text-align: center;">
+                            <button class="btn btn-sm btn-primary" onclick="editPrompt({{ prompt.id }})" style="padding: 0.25rem 0.75rem; margin-right: 0.5rem;">편집</button>
+                            {% if not prompt.is_active %}
+                            <button class="btn btn-sm btn-success" onclick="activatePrompt({{ prompt.id }})" style="padding: 0.25rem 0.75rem; margin-right: 0.5rem;">활성화</button>
+                            {% endif %}
+                            {% if not prompt.is_active %}
+                            <button class="btn btn-sm btn-danger" onclick="deletePrompt({{ prompt.id }})" style="padding: 0.25rem 0.75rem;">삭제</button>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                    {% if not prompts %}
+                    <tr>
+                        <td colspan="{% if current_user.role in ['Super Admin', 'admin'] %}4{% else %}3{% endif %}" style="padding: 2rem; text-align: center; color: #999;">
+                            저장된 프롬프트가 없습니다.
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- 요약 프롬프트 설정 -->
+    <div id="summarySettings" class="settings-section" style="display: none;">
+        <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem;">
+            <h3 style="margin-top: 0;">요약 프롬프트 관리</h3>
+            <p style="color: #666; margin-bottom: 0;">
+                OpenAI API를 사용한 테스트 런 결과 요약 시 적용되는 프롬프트를 설정합니다.<br>
+                활성화된 프롬프트가 모든 요약에 적용됩니다.
+            </p>
+        </div>
+        
+        <!-- 현재 활성 프롬프트 -->
+        <div style="background: #e8f5e9; padding: 1.5rem; border-radius: 8px; border: 2px solid #4caf50; margin-bottom: 2rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h4 style="margin: 0; color: #2e7d32;">✓ 현재 활성 프롬프트</h4>
+                {% if current_user.role in ['Super Admin', 'admin'] %}
+                <button class="btn btn-primary" onclick="editSummaryPrompt({{ active_summary_prompt.id if active_summary_prompt else 'null' }})" style="padding: 0.5rem 1rem;">
+                    편집
+                </button>
+                {% endif %}
+            </div>
+            {% if active_summary_prompt %}
+            <div style="background: white; padding: 1rem; border-radius: 4px; margin-bottom: 0.5rem;">
+                <strong>이름:</strong> {{ active_summary_prompt.name }}
+            </div>
+            <div style="background: white; padding: 1rem; border-radius: 4px; margin-bottom: 0.5rem;">
+                <strong>사용 모델:</strong> {{ active_summary_prompt.model }}
+            </div>
+            <div style="background: white; padding: 1rem; border-radius: 4px; margin-bottom: 0.5rem;">
+                <strong>시스템 프롬프트:</strong>
+                <pre style="background: #f5f5f5; padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; white-space: pre-wrap; font-size: 0.9rem;">{{ active_summary_prompt.system_prompt }}</pre>
+            </div>
+            <div style="background: white; padding: 1rem; border-radius: 4px;">
+                <strong>사용자 프롬프트 템플릿:</strong>
+                <pre style="background: #f5f5f5; padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; white-space: pre-wrap; font-size: 0.9rem;">{{ active_summary_prompt.user_prompt_template }}</pre>
+            </div>
+            {% else %}
+            <div style="background: white; padding: 1rem; border-radius: 4px; color: #999;">
+                활성화된 프롬프트가 없습니다. 프롬프트를 추가하고 활성화하세요.
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- 프롬프트 목록 -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h4>저장된 프롬프트</h4>
+            {% if current_user.role in ['Super Admin', 'admin'] %}
+            <button class="btn btn-success" onclick="createNewSummaryPrompt()" style="padding: 0.5rem 1rem;">
+                + 새 프롬프트 추가
+            </button>
+            {% endif %}
+        </div>
+        
+        <div style="background: white; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead style="background: #f5f5f5;">
+                    <tr>
+                        <th style="padding: 1rem; text-align: left; border-bottom: 1px solid #ddd;">이름</th>
+                        <th style="padding: 1rem; text-align: left; border-bottom: 1px solid #ddd;">모델</th>
+                        <th style="padding: 1rem; text-align: left; border-bottom: 1px solid #ddd;">상태</th>
+                        <th style="padding: 1rem; text-align: left; border-bottom: 1px solid #ddd;">수정일</th>
+                        {% if current_user.role in ['Super Admin', 'admin'] %}
+                        <th style="padding: 1rem; text-align: center; border-bottom: 1px solid #ddd;">작업</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for prompt in summary_prompts %}
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 1rem;">{{ prompt.name }}</td>
+                        <td style="padding: 1rem;"><code>{{ prompt.model }}</code></td>
+                        <td style="padding: 1rem;">
+                            {% if prompt.is_active %}
+                            <span style="background: #4caf50; color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.85rem;">활성</span>
+                            {% else %}
+                            <span style="background: #999; color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.85rem;">비활성</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 1rem; color: #666;">{{ prompt.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        {% if current_user.role in ['Super Admin', 'admin'] %}
+                        <td style="padding: 1rem; text-align: center;">
+                            <button class="btn btn-sm btn-primary" onclick="editSummaryPrompt({{ prompt.id }})" style="padding: 0.25rem 0.75rem; margin-right: 0.5rem;">편집</button>
+                            {% if not prompt.is_active %}
+                            <button class="btn btn-sm btn-success" onclick="activateSummaryPrompt({{ prompt.id }})" style="padding: 0.25rem 0.75rem; margin-right: 0.5rem;">활성화</button>
+                            {% endif %}
+                            {% if not prompt.is_active %}
+                            <button class="btn btn-sm btn-danger" onclick="deleteSummaryPrompt({{ prompt.id }})" style="padding: 0.25rem 0.75rem;">삭제</button>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                    {% if not summary_prompts %}
+                    <tr>
+                        <td colspan="{% if current_user.role in ['Super Admin', 'admin'] %}5{% else %}4{% endif %}" style="padding: 2rem; text-align: center; color: #999;">
+                            저장된 프롬프트가 없습니다.
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Jira 원버튼 설정 -->
+    <div id="jiraSettings" class="settings-section" style="display: none;">
+        <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem;">
+            <h3 style="margin-top: 0;">Jira 원버튼 버그 등록</h3>
+            <p style="color: #666; margin-bottom: 0;">
+                런 실행 화면(runs/#)에서 <strong>“Jira 버그 등록”</strong> 버튼을 통해 Jira 이슈를 생성하기 위한 설정입니다.<br>
+                민감 정보(API Token)는 권한이 있는 사용자만 수정할 수 있습니다.
+            </p>
+        </div>
+        
+        <div style="background: white; border: 1px solid #ddd; border-radius: 8px; padding: 1.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                <input type="checkbox" id="jiraEnabled" style="width: 18px; height: 18px;">
+                <label for="jiraEnabled" style="font-weight: 600; cursor: pointer;">Jira 원버튼 기능 사용</label>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div>
+                    <label style="display:block; font-weight: 600; margin-bottom: 0.35rem;">Base URL</label>
+                    <input type="text" id="jiraBaseUrl" class="form-control" placeholder="https://your-domain.atlassian.net"
+                           style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <div>
+                    <label style="display:block; font-weight: 600; margin-bottom: 0.35rem;">Email</label>
+                    <input type="text" id="jiraEmail" class="form-control" placeholder="jira@example.com"
+                           style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <div>
+                    <label style="display:block; font-weight: 600; margin-bottom: 0.35rem;">API Token</label>
+                    <input type="password" id="jiraApiToken" class="form-control" placeholder="(비어있으면 저장된 토큰 유지)"
+                           style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-family: monospace;">
+                    <small style="color:#666;">Jira Cloud API Token</small>
+                </div>
+                <div>
+                    <label style="display:block; font-weight: 600; margin-bottom: 0.35rem;">Project Key</label>
+                    <input type="text" id="jiraProjectKey" class="form-control" placeholder="예: P2"
+                           style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <div>
+                    <label style="display:block; font-weight: 600; margin-bottom: 0.35rem;">Issue Type</label>
+                    <input type="text" id="jiraIssueType" class="form-control" placeholder="예: Bug"
+                           style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <div>
+                    <label style="display:block; font-weight: 600; margin-bottom: 0.35rem;">Default Priority</label>
+                    <input type="text" id="jiraDefaultPriority" class="form-control" placeholder="예: High"
+                           style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <div style="grid-column: 1 / -1;">
+                    <label style="display:block; font-weight: 600; margin-bottom: 0.35rem;">Default Components (쉼표 구분)</label>
+                    <input type="text" id="jiraDefaultComponents" class="form-control" placeholder="예: UI,Matchmaking"
+                           style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+                <div style="grid-column: 1 / -1;">
+                    <label style="display:block; font-weight: 600; margin-bottom: 0.35rem;">Default Labels (쉼표 구분)</label>
+                    <input type="text" id="jiraDefaultLabels" class="form-control" placeholder="예: quickrail,run"
+                           style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+            </div>
+            
+            <div style="display:flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1.25rem;">
+                <div style="color:#666; font-size: 0.9rem;">
+                    런 페이지의 “Jira 버그 등록” 버튼은 위 기본값을 자동으로 채웁니다.
+                </div>
+                {% if current_user.role in ['Super Admin', 'admin'] %}
+                <button class="btn btn-primary" onclick="saveJiraConfig()" style="padding: 0.5rem 1rem;">
+                    저장
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- 프롬프트 편집 모달 -->
+<div id="promptModal" class="modal">
+    <div class="modal-content" style="max-width: 800px;">
+        <div class="modal-header">
+            <h3 id="modalTitle">프롬프트 편집</h3>
+            <button class="close" onclick="closePromptModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="promptForm">
+                <input type="hidden" id="promptId">
+                
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: bold;">프롬프트 이름</label>
+                    <input type="text" id="promptName" class="form-control" required 
+                           placeholder="예: default, custom-strict" 
+                           style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                    <small style="color: #666;">영문, 숫자, 하이픈만 사용 가능</small>
+                </div>
+                
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: bold;">시스템 프롬프트</label>
+                    <textarea id="systemPrompt" class="form-control" required rows="5"
+                              placeholder="예: You are a professional translator specializing in software testing documentation."
+                              style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-family: monospace;"></textarea>
+                    <small style="color: #666;">AI의 역할과 번역 스타일을 정의합니다.</small>
+                </div>
+                
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: bold;">사용자 프롬프트 템플릿</label>
+                    <textarea id="userPromptTemplate" class="form-control" required rows="8"
+                              placeholder="예: Translate the following text from {source_lang} to {target_lang}.&#10;Keep the same formatting and structure.&#10;&#10;Text to translate:&#10;{text}"
+                              style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-family: monospace;"></textarea>
+                    <small style="color: #666;">
+                        변수: {source_lang}, {target_lang}, {text}<br>
+                        예: 모든 케이스는 "Check if"로 시작해야 합니다.
+                    </small>
+                </div>
+                
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: bold;">OpenAI 모델</label>
+                    <select id="promptModel" class="form-control" required 
+                            style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;"
+                            onchange="updateModelInfo()">
+                        <option value="">로딩 중...</option>
+                    </select>
+                    <div id="modelInfo" style="margin-top: 0.5rem; padding: 0.75rem; background: #f8f9fa; border-radius: 4px; font-size: 0.9rem;">
+                        모델을 선택하세요
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closePromptModal()">취소</button>
+                    <button type="submit" class="btn btn-primary">저장</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 요약 프롬프트 편집 모달 -->
+<div id="summaryPromptModal" class="modal">
+    <div class="modal-content" style="max-width: 800px;">
+        <div class="modal-header">
+            <h3 id="summaryModalTitle">요약 프롬프트 편집</h3>
+            <button class="close" onclick="closeSummaryPromptModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="summaryPromptForm">
+                <input type="hidden" id="summaryPromptId">
+                
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: bold;">프롬프트 이름</label>
+                    <input type="text" id="summaryPromptName" class="form-control" required 
+                           placeholder="예: default, sms-style" 
+                           style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                    <small style="color: #666;">영문, 숫자, 하이픈만 사용 가능</small>
+                </div>
+                
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: bold;">시스템 프롬프트</label>
+                    <textarea id="summarySystemPrompt" class="form-control" required rows="5"
+                              placeholder="예: You are a professional QA engineer summarizing test run results."
+                              style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-family: monospace;"></textarea>
+                    <small style="color: #666;">AI의 역할과 요약 스타일을 정의합니다.</small>
+                </div>
+                
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: bold;">사용자 프롬프트 템플릿</label>
+                    <textarea id="summaryUserPromptTemplate" class="form-control" required rows="10"
+                              placeholder="예: [환경]&#10;- 빌드: {build_label}&#10;- 백엔드: {backend_info}&#10;&#10;[주요확인내역]&#10;{test_results}&#10;&#10;[참고사항]&#10;{notes}"
+                              style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-family: monospace;"></textarea>
+                    <small style="color: #666;">
+                        변수: {build_label}, {backend_info}, {test_results}, {notes} 등<br>
+                        테스트 런 결과를 요약하는 형식을 정의합니다.
+                    </small>
+                </div>
+                
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: bold;">OpenAI 모델</label>
+                    <select id="summaryPromptModel" class="form-control" required 
+                            style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;"
+                            onchange="updateSummaryModelInfo()">
+                        <option value="">로딩 중...</option>
+                    </select>
+                    <div id="summaryModelInfo" style="margin-top: 0.5rem; padding: 0.75rem; background: #f8f9fa; border-radius: 4px; font-size: 0.9rem;">
+                        모델을 선택하세요
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeSummaryPromptModal()">취소</button>
+                    <button type="submit" class="btn btn-primary">저장</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.tab-btn {
+    padding: 0.75rem 1.5rem;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    font-size: 1rem;
+    color: #666;
+    transition: all 0.3s;
+}
+
+.tab-btn:hover {
+    color: #333;
+    background: #f5f5f5;
+}
+
+.tab-btn.active {
+    color: #3498db;
+    border-bottom-color: #3498db;
+    font-weight: bold;
+}
+
+.settings-section {
+    display: block;
+}
+
+.btn-sm {
+    font-size: 0.85rem;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: auto;
+    padding: 0;
+    border: 1px solid #888;
+    width: 90%;
+    max-width: 600px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.modal-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    margin: 0;
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.close {
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
+    border: none;
+    background: none;
+    cursor: pointer;
+}
+
+.close:hover,
+.close:focus {
+    color: #000;
+}
+
+/* Toast 알림 스타일 */
+.toast-container {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.toast {
+    background: #2ecc71;
+    color: white;
+    padding: 1rem 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    min-width: 300px;
+    max-width: 400px;
+    animation: slideInRight 0.3s ease-out;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-weight: 500;
+}
+
+.toast.error {
+    background: #e74c3c;
+}
+
+.toast.warning {
+    background: #f39c12;
+}
+
+.toast.info {
+    background: #3498db;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutRight {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+.toast.hiding {
+    animation: slideOutRight 0.3s ease-out forwards;
+}
+</style>
+
+<script>
+// Toast 알림 함수
+function showToast(message, type = 'success', duration = 3000) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    // 아이콘 설정
+    let icon = '✓';
+    if (type === 'error') icon = '✕';
+    else if (type === 'warning') icon = '⚠';
+    else if (type === 'info') icon = 'ℹ';
+    
+    toast.innerHTML = `
+        <span style="font-size: 1.2rem;">${icon}</span>
+        <span>${message}</span>
+    `;
+    
+    container.appendChild(toast);
+    
+    // 자동 제거
+    setTimeout(() => {
+        toast.classList.add('hiding');
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 300);
+    }, duration);
+}
+
+function switchTab(tabName) {
+    // 탭 버튼 활성화
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.getElementById('tab' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).classList.add('active');
+    
+    // 섹션 표시
+    document.querySelectorAll('.settings-section').forEach(section => section.style.display = 'none');
+    document.getElementById(tabName + 'Settings').style.display = 'block';
+
+    // Jira 탭 진입 시 설정 로드
+    if (tabName === 'jira') {
+        loadJiraConfigIfNeeded();
+    }
+}
+
+// 고급 설정 페이지로 이동
+function goToAdvancedSettings() {
+    // 권한 체크를 위해 서버에 요청
+    fetch("{{ url_for('main.advanced_settings') }}", {
+        method: 'HEAD',
+        credentials: 'same-origin'
+    })
+    .then(response => {
+        if (response.ok) {
+            // 권한이 있으면 페이지 이동
+            window.location.href = "{{ url_for('main.advanced_settings') }}";
+        } else if (response.status === 403) {
+            // 권한이 없으면 Toast 알림 표시
+            showToast('접근 권한이 없습니다.', 'warning');
+        } else {
+            showToast('오류가 발생했습니다.', 'error');
+        }
+    })
+    .catch(err => {
+        // 네트워크 오류 등으로 인해 HEAD 요청이 실패하면 GET 요청으로 시도
+        // (실제로는 페이지 이동 시 서버에서 권한 체크가 이루어짐)
+        window.location.href = "{{ url_for('main.advanced_settings') }}";
+    });
+}
+
+// 전역 변수: 모델 목록
+let availableModels = [];
+
+// 페이지 로드 시 모델 목록 가져오기
+async function loadModels() {
+    try {
+        const res = await fetch('/api/translation-models');
+        if (res.ok) {
+            availableModels = await res.json();
+        }
+    } catch (err) {
+        console.error('모델 목록 로드 실패:', err);
+    }
+}
+
+// 모델 선택 드롭다운 채우기
+function populateModelSelect(selectedModel = 'gpt-4o-mini') {
+    const select = document.getElementById('promptModel');
+    select.innerHTML = '';
+    
+    availableModels.forEach(model => {
+        const option = document.createElement('option');
+        option.value = model.id;
+        option.textContent = `${model.name}${model.recommended ? ' ⭐ 추천' : ''}`;
+        if (model.id === selectedModel) {
+            option.selected = true;
+        }
+        select.appendChild(option);
+    });
+    
+    updateModelInfo();
+}
+
+// 모델 정보 업데이트
+function updateModelInfo() {
+    const select = document.getElementById('promptModel');
+    const infoDiv = document.getElementById('modelInfo');
+    const selectedModelId = select.value;
+    
+    const model = availableModels.find(m => m.id === selectedModelId);
+    if (model) {
+        let html = `<div style="line-height: 1.6;">`;
+        html += `<strong>${model.name}</strong><br>`;
+        html += `${model.description}<br>`;
+        html += `<div style="margin-top: 0.5rem; font-family: monospace; font-size: 0.85rem;">`;
+        html += `• 입력: $${model.input_price.toFixed(2)} / 1M tokens<br>`;
+        html += `• 출력: $${model.output_price.toFixed(2)} / 1M tokens`;
+        html += `</div>`;
+        html += `</div>`;
+        infoDiv.innerHTML = html;
+        
+        // 추천 모델은 배경색 변경
+        if (model.recommended) {
+            infoDiv.style.background = '#e8f5e9';
+            infoDiv.style.border = '1px solid #4caf50';
+        } else {
+            infoDiv.style.background = '#f8f9fa';
+            infoDiv.style.border = 'none';
+        }
+    }
+}
+
+async function createNewPrompt() {
+    await loadModels();
+    
+    document.getElementById('modalTitle').textContent = '새 프롬프트 추가';
+    document.getElementById('promptId').value = '';
+    document.getElementById('promptName').value = '';
+    document.getElementById('systemPrompt').value = 'You are a professional translator specializing in software testing documentation.';
+    document.getElementById('userPromptTemplate').value = 'Translate the following text from {source_lang} to {target_lang}.\nKeep the same formatting and structure. Only provide the translation, no explanations.\n\nText to translate:\n{text}';
+    
+    populateModelSelect('gpt-4o-mini');
+    document.getElementById('promptModal').classList.add('show');
+}
+
+async function editPrompt(promptId) {
+    try {
+        await loadModels();
+        
+        const res = await fetch(`/api/translation-prompts/${promptId}`);
+        if (!res.ok) throw new Error('프롬프트 로드 실패');
+        
+        const prompt = await res.json();
+        
+        document.getElementById('modalTitle').textContent = '프롬프트 편집';
+        document.getElementById('promptId').value = prompt.id;
+        document.getElementById('promptName').value = prompt.name;
+        document.getElementById('systemPrompt').value = prompt.system_prompt;
+        document.getElementById('userPromptTemplate').value = prompt.user_prompt_template;
+        
+        populateModelSelect(prompt.model || 'gpt-4o-mini');
+        document.getElementById('promptModal').classList.add('show');
+    } catch (err) {
+        alert('프롬프트 로드 실패: ' + err.message);
+    }
+}
+
+async function activatePrompt(promptId) {
+    if (!confirm('이 프롬프트를 활성화하시겠습니까?')) return;
+    
+    try {
+        const res = await fetch(`/api/translation-prompts/${promptId}/activate`, {
+            method: 'POST'
+        });
+        
+        if (!res.ok) throw new Error('활성화 실패');
+        
+        alert('프롬프트가 활성화되었습니다.');
+        location.reload();
+    } catch (err) {
+        alert('활성화 실패: ' + err.message);
+    }
+}
+
+async function deletePrompt(promptId) {
+    if (!confirm('이 프롬프트를 삭제하시겠습니까?')) return;
+    
+    try {
+        const res = await fetch(`/api/translation-prompts/${promptId}`, {
+            method: 'DELETE'
+        });
+        
+        if (!res.ok) throw new Error('삭제 실패');
+        
+        alert('프롬프트가 삭제되었습니다.');
+        location.reload();
+    } catch (err) {
+        alert('삭제 실패: ' + err.message);
+    }
+}
+
+function closePromptModal() {
+    document.getElementById('promptModal').classList.remove('show');
+}
+
+// 폼 제출
+document.getElementById('promptForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const promptId = document.getElementById('promptId').value;
+    const data = {
+        name: document.getElementById('promptName').value,
+        system_prompt: document.getElementById('systemPrompt').value,
+        user_prompt_template: document.getElementById('userPromptTemplate').value,
+        model: document.getElementById('promptModel').value
+    };
+    
+    try {
+        const url = promptId ? `/api/translation-prompts/${promptId}` : '/api/translation-prompts';
+        const method = promptId ? 'PUT' : 'POST';
+        
+        const res = await fetch(url, {
+            method: method,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.error || '저장 실패');
+        }
+        
+        const selectedModel = availableModels.find(m => m.id === data.model);
+        alert(`프롬프트가 저장되었습니다.\n사용 모델: ${selectedModel ? selectedModel.name : data.model}`);
+        location.reload();
+    } catch (err) {
+        alert('저장 실패: ' + err.message);
+    }
+});
+
+// 모달 외부 클릭 시 닫기
+document.getElementById('promptModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closePromptModal();
+    }
+});
+
+// ============================================================
+// 요약 프롬프트 관리 함수
+// ============================================================
+
+async function createNewSummaryPrompt() {
+    await loadModels();
+    
+    document.getElementById('summaryModalTitle').textContent = '새 요약 프롬프트 추가';
+    document.getElementById('summaryPromptId').value = '';
+    document.getElementById('summaryPromptName').value = '';
+    document.getElementById('summarySystemPrompt').value = '';
+    document.getElementById('summaryUserPromptTemplate').value = '';
+    document.getElementById('summaryPromptModel').value = '';
+    
+    // 모델 드롭다운 채우기
+    populateSummaryModelSelect();
+    
+    document.getElementById('summaryPromptModal').classList.add('show');
+}
+
+async function editSummaryPrompt(promptId) {
+    try {
+        await loadModels();
+        
+        const res = await fetch(`/api/summary-prompts/${promptId}`);
+        if (!res.ok) throw new Error('프롬프트 로드 실패');
+        
+        const prompt = await res.json();
+        
+        document.getElementById('summaryModalTitle').textContent = '요약 프롬프트 편집';
+        document.getElementById('summaryPromptId').value = prompt.id;
+        document.getElementById('summaryPromptName').value = prompt.name;
+        document.getElementById('summarySystemPrompt').value = prompt.system_prompt;
+        document.getElementById('summaryUserPromptTemplate').value = prompt.user_prompt_template;
+        
+        // 모델 드롭다운 채우기
+        populateSummaryModelSelect(prompt.model);
+        
+        document.getElementById('summaryPromptModal').classList.add('show');
+    } catch (err) {
+        alert('프롬프트 로드 실패: ' + err.message);
+    }
+}
+
+function closeSummaryPromptModal() {
+    document.getElementById('summaryPromptModal').classList.remove('show');
+}
+
+async function activateSummaryPrompt(promptId) {
+    if (!confirm('이 프롬프트를 활성화하시겠습니까?')) return;
+    
+    try {
+        const res = await fetch(`/api/summary-prompts/${promptId}/activate`, {
+            method: 'POST'
+        });
+        
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.error || '활성화 실패');
+        }
+        
+        alert('프롬프트가 활성화되었습니다.');
+        location.reload();
+    } catch (err) {
+        alert('활성화 실패: ' + err.message);
+    }
+}
+
+async function deleteSummaryPrompt(promptId) {
+    if (!confirm('이 프롬프트를 삭제하시겠습니까?')) return;
+    
+    try {
+        const res = await fetch(`/api/summary-prompts/${promptId}`, {
+            method: 'DELETE'
+        });
+        
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.error || '삭제 실패');
+        }
+        
+        alert('프롬프트가 삭제되었습니다.');
+        location.reload();
+    } catch (err) {
+        alert('삭제 실패: ' + err.message);
+    }
+}
+
+// 모델 선택 드롭다운 채우기 (요약 프롬프트용)
+function populateSummaryModelSelect(selectedModel = 'gpt-4o-mini') {
+    const select = document.getElementById('summaryPromptModel');
+    select.innerHTML = '';
+    
+    availableModels.forEach(model => {
+        const option = document.createElement('option');
+        option.value = model.id;
+        option.textContent = model.name;
+        if (model.id === selectedModel) {
+            option.selected = true;
+        }
+        select.appendChild(option);
+    });
+    
+    updateSummaryModelInfo();
+}
+
+function updateSummaryModelInfo() {
+    const select = document.getElementById('summaryPromptModel');
+    const modelId = select.value;
+    const infoDiv = document.getElementById('summaryModelInfo');
+    
+    if (!modelId) {
+        infoDiv.textContent = '모델을 선택하세요';
+        return;
+    }
+    
+    const model = availableModels.find(m => m.id === modelId);
+    if (model) {
+        infoDiv.innerHTML = `<strong>${model.name}</strong><br>${model.description || ''}`;
+    } else {
+        infoDiv.textContent = '모델 정보 없음';
+    }
+}
+
+// 폼 제출 (요약 프롬프트)
+document.getElementById('summaryPromptForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const promptId = document.getElementById('summaryPromptId').value;
+    const data = {
+        name: document.getElementById('summaryPromptName').value,
+        system_prompt: document.getElementById('summarySystemPrompt').value,
+        user_prompt_template: document.getElementById('summaryUserPromptTemplate').value,
+        model: document.getElementById('summaryPromptModel').value
+    };
+    
+    try {
+        const url = promptId ? `/api/summary-prompts/${promptId}` : '/api/summary-prompts';
+        const method = promptId ? 'PUT' : 'POST';
+        
+        const res = await fetch(url, {
+            method: method,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.error || '저장 실패');
+        }
+        
+        const selectedModel = availableModels.find(m => m.id === data.model);
+        alert(`프롬프트가 저장되었습니다.\n사용 모델: ${selectedModel ? selectedModel.name : data.model}`);
+        location.reload();
+    } catch (err) {
+        alert('저장 실패: ' + err.message);
+    }
+});
+
+// 모달 외부 클릭 시 닫기
+document.getElementById('summaryPromptModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeSummaryPromptModal();
+    }
+});
+
+// ============================================================
+// Jira 원버튼 설정
+// ============================================================
+
+let jiraConfigLoaded = false;
+
+async function loadJiraConfigIfNeeded() {
+    if (jiraConfigLoaded) return;
+    jiraConfigLoaded = true;
+    await loadJiraConfig();
+}
+
+function _setInputValue(id, value) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.type === 'checkbox') {
+        el.checked = !!value;
+    } else {
+        el.value = value ?? '';
+    }
+}
+
+async function loadJiraConfig() {
+    // Admin이면 /api/jira/config, 아니면 public로 fallback
+    try {
+        const res = await fetch('/api/jira/config');
+        if (res.ok) {
+            const cfg = await res.json();
+            _setInputValue('jiraEnabled', cfg.enabled);
+            _setInputValue('jiraBaseUrl', cfg.base_url);
+            _setInputValue('jiraEmail', cfg.email);
+            _setInputValue('jiraApiToken', cfg.api_token);
+            _setInputValue('jiraProjectKey', cfg.project_key);
+            _setInputValue('jiraIssueType', cfg.issue_type);
+            _setInputValue('jiraDefaultComponents', cfg.default_components);
+            _setInputValue('jiraDefaultLabels', cfg.default_labels);
+            _setInputValue('jiraDefaultPriority', cfg.default_priority);
+            return;
+        }
+    } catch (e) {
+        // ignore and try public
+    }
+    
+    try {
+        const res2 = await fetch('/api/jira/config/public');
+        if (!res2.ok) return;
+        const cfg = await res2.json();
+        _setInputValue('jiraEnabled', cfg.enabled);
+        _setInputValue('jiraBaseUrl', cfg.base_url);
+        _setInputValue('jiraProjectKey', cfg.project_key);
+        _setInputValue('jiraIssueType', cfg.issue_type);
+        _setInputValue('jiraDefaultComponents', cfg.default_components);
+        _setInputValue('jiraDefaultLabels', cfg.default_labels);
+        _setInputValue('jiraDefaultPriority', cfg.default_priority);
+        // 비관리자는 민감 정보는 비움
+        _setInputValue('jiraEmail', '');
+        _setInputValue('jiraApiToken', '');
+    } catch (e) {
+        // ignore
+    }
+}
+
+async function saveJiraConfig() {
+    const payload = {
+        enabled: document.getElementById('jiraEnabled').checked,
+        base_url: document.getElementById('jiraBaseUrl').value,
+        email: document.getElementById('jiraEmail').value,
+        api_token: document.getElementById('jiraApiToken').value,
+        project_key: document.getElementById('jiraProjectKey').value,
+        issue_type: document.getElementById('jiraIssueType').value,
+        default_components: document.getElementById('jiraDefaultComponents').value,
+        default_labels: document.getElementById('jiraDefaultLabels').value,
+        default_priority: document.getElementById('jiraDefaultPriority').value
+    };
+    
+    try {
+        const res = await fetch('/api/jira/config', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || '저장 실패');
+        }
+        
+        showToast('Jira 설정이 저장되었습니다.', 'success');
+        // 토큰 입력은 보안상 재입력 유도 (필요시 사용자 선택)
+        // jiraConfigLoaded 유지
+    } catch (e) {
+        showToast('Jira 설정 저장 실패: ' + e.message, 'error', 6000);
+    }
+}
+</script>
+{% endblock %}
+

@@ -83,6 +83,16 @@
         overflow-y: auto;
     }
     
+    .section-search {
+        position: sticky;
+        top: 0;
+        background: white;
+        padding-bottom: 0.75rem;
+        margin-bottom: 0.75rem;
+        border-bottom: 1px solid #eee;
+        z-index: 1;
+    }
+
     .section-list-item {
         padding: 0.75rem;
         margin: 0.25rem 0;
@@ -108,6 +118,66 @@
         color: #3498db;
     }
     
+    .section-indent {
+        display: inline-block;
+        width: 0;
+    }
+
+    .section-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        flex: 1;
+        min-width: 0;
+    }
+
+    .section-toggle-checkbox {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+        flex: 0 0 auto;
+    }
+
+    .filters-bar {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        margin-bottom: 0.75rem;
+        padding: 0.5rem;
+        background: #f8f9fa;
+        border-radius: 6px;
+        border: 1px solid #e0e0e0;
+    }
+
+    .filters-bar select {
+        padding: 0.35rem 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        background: white;
+    }
+
+    .case-section-group-header {
+        padding: 0.5rem 0.75rem;
+        background: #f5f5f5;
+        border-left: 3px solid #3498db;
+        margin: 0.75rem 0 0.5rem 0;
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: #333;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
+
+    .case-section-group-header small {
+        color: #666;
+        font-weight: 500;
+    }
+
     .case-list {
         overflow-y: auto;
     }
@@ -175,15 +245,6 @@
 {% endblock %}
 
 {% block content %}
-<div style="margin-bottom: 1rem;">
-    <h2>{{ project.name }}</h2>
-    <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
-        <a href="{{ url_for('main.cases', project_id=project.id) }}" class="btn btn-secondary">케이스</a>
-        <a href="{{ url_for('main.runs', project_id=project.id) }}" class="btn btn-primary">런</a>
-        <a href="{{ url_for('main.dashboard', project_id=project.id) }}" class="btn btn-secondary">리포트</a>
-    </div>
-</div>
-
 <div style="max-width: 1200px;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
         <h3>테스트 런</h3>
@@ -217,6 +278,11 @@
                 <textarea id="runDescription" class="form-control"></textarea>
             </div>
             <div class="form-group">
+                <label class="form-label">빌드 라벨 (선택)</label>
+                <input type="text" id="buildLabel" class="form-control" placeholder="예: 1.3.0-rc1, v2.5.0">
+                <small style="color: #666; display: block; margin-top: 0.25rem;">테스트 대상 빌드 버전을 입력하세요</small>
+            </div>
+            <div class="form-group">
                 <label class="form-label">타입</label>
                 <select id="runType" class="form-control">
                     <option value="smoke">Smoke</option>
@@ -224,6 +290,17 @@
                     <option value="hotfix">Hotfix</option>
                     <option value="custom">Custom</option>
                 </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">언어</label>
+                <select id="runLanguage" class="form-control">
+                    <option value="original" selected>원본</option>
+                    <option value="ko">한국어</option>
+                    <option value="en">English</option>
+                </select>
+                <small style="color: #666; display: block; margin-top: 0.25rem;">
+                    선택한 언어 캐시가 없으면 자동 번역 후 런이 생성됩니다.
+                </small>
             </div>
             <div class="form-group">
                 <label class="form-label">포함할 케이스 선택</label>
@@ -251,13 +328,16 @@
                 <div style="display: flex; justify-content: space-between; align-items: start;">
                     <div style="flex: 1;">
                         <h5 style="margin-bottom: 0.5rem;">
-                            <a href="{{ url_for('main.run_execute', run_id=run.id) }}" style="color: #2c3e50; text-decoration: none;">
+                            <a href="{{ url_for('main.run_execute', project_id=project.id, run_id=run.id) }}" style="color: #2c3e50; text-decoration: none;">
                                 {{ run.name }}
                             </a>
                         </h5>
                         <div style="font-size: 0.9rem; color: #666;">
-                            <span>{{ run.run_type or 'custom' }}</span> | 
-                            <span>생성자: {{ run.creator.name }}</span> | 
+                            <span>{{ run.run_type or 'custom' }}</span>
+                            {% if run.build_label %}
+                            | <span style="color: #3498db; font-weight: 500;">🏷️ {{ run.build_label }}</span>
+                            {% endif %}
+                            | <span>생성자: {{ run.creator.name }}</span> | 
                             <span>{{ run.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
                         </div>
                         {% if run.description %}
@@ -301,9 +381,17 @@
             <div style="flex: 1;">
                 <div style="display: flex; justify-content: space-between; align-items: start;">
                     <div style="flex: 1;">
-                        <h5 style="margin-bottom: 0.5rem; color: #666;">{{ run.name }}</h5>
+                        <h5 style="margin-bottom: 0.5rem;">
+                            <a href="{{ url_for('main.run_execute', project_id=project.id, run_id=run.id) }}" style="color: #666; text-decoration: none;">
+                                {{ run.name }}
+                            </a>
+                        </h5>
                         <div style="font-size: 0.9rem; color: #999;">
-                            <span>{{ run.run_type or 'custom' }}</span> | 
+                            <span>{{ run.run_type or 'custom' }}</span>
+                            {% if run.build_label %}
+                            | <span style="color: #3498db; font-weight: 500;">🏷️ {{ run.build_label }}</span>
+                            {% endif %}
+                            | <span>생성자: {{ run.creator.name }}</span> | 
                             <span>{{ run.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
                         </div>
                     </div>
@@ -344,21 +432,43 @@
         <div class="modal-body">
             <div class="case-selector">
                 <div class="section-list">
-                    <h4 style="margin-bottom: 1rem; font-size: 1rem;">섹션</h4>
+                    <div class="section-search">
+                        <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">섹션</h4>
+                        <input type="text" id="modalSectionSearchInput" class="form-control"
+                               placeholder="섹션 검색..."
+                               oninput="filterModalSections()"
+                               style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                        <small style="display:block; margin-top: 0.35rem; color:#666;">좌측 체크박스: 섹션(하위 포함) 케이스 포함/미포함</small>
+                    </div>
                     <div id="modalSectionList">
-                        <div class="section-list-item active" data-section-id="all" onclick="selectModalSection('all')">
-                            <span>📋</span>
-                            <span>전체 케이스</span>
-                            <span class="selected-count" id="count-all" style="margin-left: auto;">0</span>
-                        </div>
+                        <!-- JavaScript로 동적 생성 -->
                     </div>
                 </div>
                 <div class="case-list">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                        <h4 style="margin: 0; font-size: 1rem;">케이스 목록</h4>
+                    <div class="filters-bar">
+                        <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap: wrap;">
+                            <strong style="font-size: 1rem;">케이스 목록</strong>
+                            <label style="display:flex; align-items:center; gap:0.35rem; font-size:0.9rem; cursor:pointer;">
+                                <span style="color:#666;">우선순위</span>
+                                <select id="modalPriorityFilter" onchange="applyModalFilters()">
+                                    <option value="">전체</option>
+                                    <option value="Blocker">Blocker</option>
+                                    <option value="Critical">Critical</option>
+                                    <option value="High">High</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="Low">Low</option>
+                                </select>
+                            </label>
+                            <label style="display:flex; align-items:center; gap:0.35rem; font-size:0.9rem; cursor:pointer;">
+                                <span style="color:#666;">라벨</span>
+                                <select id="modalTagFilter" onchange="applyModalFilters()">
+                                    <option value="">전체</option>
+                                </select>
+                            </label>
+                        </div>
                         <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; cursor: pointer;">
-                            <input type="checkbox" id="selectAllCases" onchange="toggleSelectAll()">
-                            <span>전체 선택</span>
+                            <input type="checkbox" id="selectAllCases" onchange="toggleSelectAllVisible()">
+                            <span>현재 목록 전체 선택</span>
                         </label>
                     </div>
                     <div id="caseCheckboxList">
@@ -386,13 +496,32 @@ const projectId = {{ project.id }};
 let allSections = [];
 let allCases = [];
 let selectedCaseIds = new Set();
-let currentModalSection = 'all';
+let currentModalSection = null;
+
+// 섹션 트리/정렬/검색/필터용
+let modalSectionIndex = {
+    byId: new Map(),
+    children: new Map(), // parent_id -> [section]
+    depth: new Map(),    // id -> depth(1~)
+    path: new Map(),     // id -> "Parent > Child"
+    orderedIds: []       // 표시 순서(트리 pre-order)
+};
+let modalSectionSearchText = '';
+let modalPriorityFilter = '';
+let modalTagFilter = '';
 
 function showCreateRun() {
     document.getElementById('createRunForm').style.display = 'block';
     // 자동 이름 생성
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('runName').value = `${today} Regression`;
+
+    // cases 페이지의 preferredLanguage 재사용
+    const preferred = localStorage.getItem('preferredLanguage') || 'original';
+    const langSelect = document.getElementById('runLanguage');
+    if (langSelect) {
+        langSelect.value = (preferred === 'ko' || preferred === 'en') ? preferred : 'original';
+    }
 }
 
 function hideCreateRun() {
@@ -491,12 +620,17 @@ async function saveAsTemplate() {
 async function createRunFromTemplate(templateId, templateName) {
     const runName = prompt('런 이름:', `${templateName} - ${new Date().toISOString().split('T')[0]}`);
     if (!runName) return;
+
+    const preferred = localStorage.getItem('preferredLanguage') || 'original';
+    const defaultLang = (preferred === 'ko' || preferred === 'en') ? preferred : 'original';
+    const runLanguage = prompt('언어 선택 (original/ko/en):', defaultLang) || defaultLang;
+    const normalizedLang = (runLanguage === 'ko' || runLanguage === 'en') ? runLanguage : 'original';
     
     try {
         const res = await fetch(`/api/run-templates/${templateId}/create-run`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ name: runName })
+            body: JSON.stringify({ name: runName, language: normalizedLang })
         });
         
         if (res.ok) {
@@ -551,7 +685,9 @@ function createRun(event) {
     
     const name = document.getElementById('runName').value;
     const description = document.getElementById('runDescription').value;
+    const buildLabel = document.getElementById('buildLabel').value;  // Phase 1
     const runType = document.getElementById('runType').value;
+    const runLanguage = document.getElementById('runLanguage')?.value || 'original';
     const caseIdsStr = document.getElementById('selectedCaseIds').value;
     
     const caseIds = caseIdsStr.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
@@ -567,7 +703,9 @@ function createRun(event) {
         body: JSON.stringify({
             name: name,
             description: description,
+            build_label: buildLabel,  // Phase 1
             run_type: runType,
+            language: runLanguage,
             case_ids: caseIds
         })
     })
@@ -584,8 +722,14 @@ async function openCaseSelector() {
     
     // 데이터 로드
     await loadSectionsAndCases();
+    buildModalIndexes();
+    populateModalTagFilter();
+    // 기본 선택 섹션: 첫 섹션
+    if (!currentModalSection && modalSectionIndex.orderedIds.length > 0) {
+        currentModalSection = modalSectionIndex.orderedIds[0];
+    }
     renderSectionList();
-    renderCaseList('all');
+    renderCaseList(currentModalSection);
 }
 
 function closeCaseSelector() {
@@ -615,15 +759,103 @@ async function loadSectionsAndCases() {
     }
 }
 
+function buildModalIndexes() {
+    // 섹션 인덱스 구성
+    modalSectionIndex.byId = new Map(allSections.map(s => [s.id, s]));
+    modalSectionIndex.children = new Map();
+    allSections.forEach(s => {
+        const pid = s.parent_id || null;
+        if (!modalSectionIndex.children.has(pid)) modalSectionIndex.children.set(pid, []);
+        modalSectionIndex.children.get(pid).push(s);
+    });
+    // 자식 정렬: order_index, name
+    modalSectionIndex.children.forEach((arr) => {
+        arr.sort((a, b) => {
+            const ao = (a.order_index ?? 0) - (b.order_index ?? 0);
+            if (ao !== 0) return ao;
+            return String(a.name || '').localeCompare(String(b.name || ''));
+        });
+    });
+
+    const depthCache = new Map();
+    const pathCache = new Map();
+    const computeDepth = (id) => {
+        if (depthCache.has(id)) return depthCache.get(id);
+        const s = modalSectionIndex.byId.get(id);
+        if (!s) return 1;
+        let d = 1;
+        if (s.parent_id) d = Math.min(4, computeDepth(s.parent_id) + 1);
+        depthCache.set(id, d);
+        return d;
+    };
+    const computePath = (id) => {
+        if (pathCache.has(id)) return pathCache.get(id);
+        const s = modalSectionIndex.byId.get(id);
+        if (!s) return '';
+        const parts = [s.name || ''];
+        let cur = s;
+        let guard = 0;
+        while (cur && cur.parent_id && guard++ < 10) {
+            const p = modalSectionIndex.byId.get(cur.parent_id);
+            if (!p) break;
+            parts.unshift(p.name || '');
+            cur = p;
+        }
+        const pth = parts.join(' > ');
+        pathCache.set(id, pth);
+        return pth;
+    };
+
+    modalSectionIndex.depth = depthCache;
+    modalSectionIndex.path = pathCache;
+
+    // pre-order로 orderedIds 생성
+    const ordered = [];
+    const walk = (pid, d) => {
+        const children = modalSectionIndex.children.get(pid) || [];
+        for (const c of children) {
+            ordered.push(c.id);
+            walk(c.id, d + 1);
+        }
+    };
+    walk(null, 1);
+    modalSectionIndex.orderedIds = ordered;
+
+    // depth/path 사전 계산
+    ordered.forEach(id => {
+        computeDepth(id);
+        computePath(id);
+    });
+}
+
+function populateModalTagFilter() {
+    const select = document.getElementById('modalTagFilter');
+    if (!select) return;
+    // 태그 목록(라벨) 추출
+    const tags = new Set();
+    allCases.forEach(c => {
+        (c.tags || []).forEach(t => tags.add(String(t)));
+    });
+    const sorted = Array.from(tags).sort((a, b) => a.localeCompare(b));
+    select.innerHTML = '<option value=\"\">전체</option>' + sorted.map(t => `<option value=\"${t}\">${t}</option>`).join('');
+}
+
+function filterModalSections() {
+    modalSectionSearchText = (document.getElementById('modalSectionSearchInput')?.value || '').trim().toLowerCase();
+    renderSectionList();
+}
+
+function applyModalFilters() {
+    modalPriorityFilter = document.getElementById('modalPriorityFilter')?.value || '';
+    modalTagFilter = document.getElementById('modalTagFilter')?.value || '';
+    renderCaseList(currentModalSection);
+    updateSelectAllCheckbox();
+}
+
 function renderSectionList() {
     const container = document.getElementById('modalSectionList');
-    
-    // 기존 섹션 항목 제거 (전체 케이스 제외)
-    const existingSections = container.querySelectorAll('.section-list-item:not([data-section-id="all"])');
-    existingSections.forEach(item => item.remove());
-    
-    // 전체 케이스 카운트 업데이트
-    updateSectionCount('all');
+    if (!container) return;
+    container.innerHTML = '';
     
     // HTML 이스케이프 함수
     const escapeHtml = (text) => {
@@ -632,29 +864,70 @@ function renderSectionList() {
         return text.replace(/[&<>"']/g, m => map[m]);
     };
     
-    console.log('섹션 렌더링 시작:', allSections.length);
-    
+    const matches = (id) => {
+        if (!modalSectionSearchText) return true;
+        const s = modalSectionIndex.byId.get(id);
+        const pth = modalSectionIndex.path.get(id) || '';
+        const name = (s?.name || '').toLowerCase();
+        return name.includes(modalSectionSearchText) || pth.toLowerCase().includes(modalSectionSearchText);
+    };
+
+    // 검색어가 있을 때는 매칭 섹션 + 부모(경로)도 같이 노출
+    const visibleIds = new Set();
+    if (modalSectionSearchText) {
+        modalSectionIndex.orderedIds.forEach(id => {
+            if (matches(id)) {
+                let curId = id;
+                let guard = 0;
+                while (curId && guard++ < 10) {
+                    visibleIds.add(curId);
+                    const s = modalSectionIndex.byId.get(curId);
+                    curId = s?.parent_id || null;
+                }
+            }
+        });
+    }
+
+    const orderedIds = modalSectionIndex.orderedIds.filter(id => {
+        if (!modalSectionSearchText) return true;
+        return visibleIds.has(id);
+    });
+
     // 섹션 항목 추가
-    allSections.forEach(section => {
+    orderedIds.forEach(sectionId => {
+        const section = modalSectionIndex.byId.get(sectionId);
+        if (!section) return;
+
         const item = document.createElement('div');
         item.className = 'section-list-item';
         item.dataset.sectionId = section.id;
         item.onclick = () => selectModalSection(section.id);
-        
-        const icon = section.parent_id ? '📄' : '📂';
-        const indent = section.parent_id ? '　' : '';
-        
+
+        const depth = modalSectionIndex.depth.get(section.id) || 1;
+        const icon = depth === 1 ? '📁' : '📄';
+        const paddingLeft = (depth - 1) * 14;
+
         item.innerHTML = `
-            ${indent}<span>${icon}</span>
-            <span>${escapeHtml(section.name)}</span>
+            <input type="checkbox" class="section-toggle-checkbox" id="secchk-${section.id}"
+                   onclick="event.stopPropagation()"
+                   onchange="toggleSectionInclude(${section.id}, this)">
+            <span style="margin-left: ${paddingLeft}px;">${icon}</span>
+            <span class="section-name">${escapeHtml(section.name)}</span>
             <span class="selected-count" id="count-${section.id}" style="margin-left: auto; display: none;">0</span>
         `;
         
         container.appendChild(item);
         updateSectionCount(section.id);
     });
-    
-    console.log('섹션 렌더링 완료');
+
+    // active 표시 복원
+    if (currentModalSection) {
+        container.querySelectorAll('.section-list-item').forEach(i => i.classList.remove('active'));
+        container.querySelector(`[data-section-id="${currentModalSection}"]`)?.classList.add('active');
+    }
+
+    // 체크박스 상태(checked/indeterminate) 업데이트
+    updateSectionCheckboxStates();
 }
 
 function selectModalSection(sectionId) {
@@ -670,25 +943,75 @@ function selectModalSection(sectionId) {
     renderCaseList(sectionId);
 }
 
+function getDescendantSectionIds(sectionId) {
+    const result = [sectionId];
+    const stack = [sectionId];
+    while (stack.length) {
+        const cur = stack.pop();
+        const children = modalSectionIndex.children.get(cur) || [];
+        children.forEach(ch => {
+            result.push(ch.id);
+            stack.push(ch.id);
+        });
+    }
+    return result;
+}
+
+function getVisibleCases() {
+    if (!currentModalSection) return [];
+    const sectionIds = new Set(getDescendantSectionIds(Number(currentModalSection)));
+    return allCases.filter(c => {
+        if (!sectionIds.has(Number(c.section_id))) return false;
+        if (modalPriorityFilter && String(c.priority) !== modalPriorityFilter) return false;
+        if (modalTagFilter) {
+            const tags = (c.tags || []).map(t => String(t));
+            if (!tags.includes(modalTagFilter)) return false;
+        }
+        return true;
+    });
+}
+
 function renderCaseList(sectionId) {
     const container = document.getElementById('caseCheckboxList');
     container.innerHTML = '';
-    
-    console.log('케이스 렌더링:', sectionId, '전체 케이스:', allCases.length);
-    
-    const filteredCases = sectionId === 'all' 
-        ? allCases 
-        : allCases.filter(c => c.section_id == sectionId);
-    
-    console.log('필터링된 케이스:', filteredCases.length);
-    
-    if (filteredCases.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: #999; padding: 2rem;">이 섹션에 케이스가 없습니다.</p>';
+
+    if (!sectionId) {
+        container.innerHTML = '<p style="text-align: center; color: #999; padding: 2rem;">섹션을 선택하세요.</p>';
         document.getElementById('selectAllCases').checked = false;
         return;
     }
+
+    const filteredCases = getVisibleCases();
     
-    filteredCases.forEach(caseItem => {
+    if (filteredCases.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #999; padding: 2rem;">조건에 맞는 케이스가 없습니다.</p>';
+        document.getElementById('selectAllCases').checked = false;
+        return;
+    }
+
+    // 섹션별 그룹 헤더로 묶어서 렌더링
+    const groups = new Map(); // section_id -> cases[]
+    filteredCases.forEach(c => {
+        const sid = Number(c.section_id);
+        if (!groups.has(sid)) groups.set(sid, []);
+        groups.get(sid).push(c);
+    });
+    // 표시 순서: 섹션 트리 순서대로
+    const orderedSectionIds = modalSectionIndex.orderedIds.filter(id => groups.has(Number(id)));
+    orderedSectionIds.forEach(sid => {
+        const section = modalSectionIndex.byId.get(sid);
+        const path = modalSectionIndex.path.get(sid) || (section?.name || '');
+        const casesInSection = groups.get(Number(sid)) || [];
+
+        const header = document.createElement('div');
+        header.className = 'case-section-group-header';
+        header.innerHTML = `
+            <div>📁 ${path}</div>
+            <small>${casesInSection.length}개</small>
+        `;
+        container.appendChild(header);
+
+        casesInSection.forEach(caseItem => {
         const div = document.createElement('div');
         div.className = 'case-checkbox-item';
         if (selectedCaseIds.has(caseItem.id)) {
@@ -718,6 +1041,7 @@ function renderCaseList(sectionId) {
         `;
         
         container.appendChild(div);
+        });
     });
     
     // 전체 선택 체크박스 상태 업데이트
@@ -734,26 +1058,20 @@ function toggleCase(caseId) {
     updateSelectionUI();
 }
 
-function toggleSelectAll() {
+function toggleSelectAllVisible() {
     const checkbox = document.getElementById('selectAllCases');
-    const filteredCases = currentModalSection === 'all' 
-        ? allCases 
-        : allCases.filter(c => c.section_id == currentModalSection);
-    
+    const visible = getVisibleCases();
     if (checkbox.checked) {
-        filteredCases.forEach(c => selectedCaseIds.add(c.id));
+        visible.forEach(c => selectedCaseIds.add(c.id));
     } else {
-        filteredCases.forEach(c => selectedCaseIds.delete(c.id));
+        visible.forEach(c => selectedCaseIds.delete(c.id));
     }
-    
     renderCaseList(currentModalSection);
     updateSelectionUI();
 }
 
 function updateSelectAllCheckbox() {
-    const filteredCases = currentModalSection === 'all' 
-        ? allCases 
-        : allCases.filter(c => c.section_id == currentModalSection);
+    const filteredCases = getVisibleCases();
     
     if (filteredCases.length === 0) {
         document.getElementById('selectAllCases').checked = false;
@@ -770,10 +1088,8 @@ function updateSelectionUI() {
     document.getElementById('modalSelectionCount').textContent = count;
     
     // 각 섹션의 선택 개수 업데이트
-    updateSectionCount('all');
-    allSections.forEach(section => {
-        updateSectionCount(section.id);
-    });
+    allSections.forEach(section => updateSectionCount(section.id));
+    updateSectionCheckboxStates();
     
     // 체크박스 스타일 업데이트
     document.querySelectorAll('.case-checkbox-item').forEach(item => {
@@ -789,9 +1105,9 @@ function updateSelectionUI() {
 }
 
 function updateSectionCount(sectionId) {
-    const cases = sectionId === 'all' 
-        ? allCases 
-        : allCases.filter(c => c.section_id == sectionId);
+    // 섹션(하위 포함) 기준으로 선택된 케이스 개수 계산
+    const ids = new Set(getDescendantSectionIds(Number(sectionId)));
+    const cases = allCases.filter(c => ids.has(Number(c.section_id)));
     
     const selectedCount = cases.filter(c => selectedCaseIds.has(c.id)).length;
     const countElement = document.getElementById(`count-${sectionId}`);
@@ -806,6 +1122,45 @@ function updateSectionCount(sectionId) {
             document.querySelector(`[data-section-id="${sectionId}"]`)?.classList.remove('has-selection');
         }
     }
+}
+
+function updateSectionCheckboxStates() {
+    // 섹션별 체크 상태(checked/indeterminate) 반영
+    allSections.forEach(s => {
+        const el = document.getElementById(`secchk-${s.id}`);
+        if (!el) return;
+        const ids = new Set(getDescendantSectionIds(Number(s.id)));
+        const cases = allCases.filter(c => ids.has(Number(c.section_id)));
+        if (cases.length === 0) {
+            el.checked = false;
+            el.indeterminate = false;
+            return;
+        }
+        const selectedCount = cases.filter(c => selectedCaseIds.has(c.id)).length;
+        if (selectedCount === 0) {
+            el.checked = false;
+            el.indeterminate = false;
+        } else if (selectedCount === cases.length) {
+            el.checked = true;
+            el.indeterminate = false;
+        } else {
+            el.checked = false;
+            el.indeterminate = true;
+        }
+    });
+}
+
+function toggleSectionInclude(sectionId, checkboxEl) {
+    const ids = new Set(getDescendantSectionIds(Number(sectionId)));
+    const cases = allCases.filter(c => ids.has(Number(c.section_id)));
+    if (checkboxEl.checked) {
+        cases.forEach(c => selectedCaseIds.add(c.id));
+    } else {
+        cases.forEach(c => selectedCaseIds.delete(c.id));
+    }
+    // 현재 섹션이 선택된 상태면 우측 리스트 반영
+    renderCaseList(currentModalSection);
+    updateSelectionUI();
 }
 
 function confirmCaseSelection() {

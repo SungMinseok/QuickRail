@@ -29,7 +29,7 @@ python run.py init-db
 ```
 
 이 명령어는 다음을 수행합니다:
-- SQLite 데이터베이스 생성 (`quickrail.db`)
+- SQLite 데이터베이스 생성 (`instance/quickrail.db`)
 - 모든 테이블 생성
 - 샘플 사용자 3명 생성:
   - **Admin**: admin@quickrail.com / admin123
@@ -103,9 +103,9 @@ flask run --port 5001
 
 ### 데이터베이스 초기화 (모든 데이터 삭제)
 ```bash
-# quickrail.db 파일 삭제
-rm quickrail.db  # Linux/Mac
-del quickrail.db  # Windows
+# instance/quickrail.db 파일 삭제
+rm instance/quickrail.db  # Linux/Mac
+del instance\\quickrail.db  # Windows
 
 # 다시 초기화
 python run.py init-db
@@ -149,5 +149,6 @@ pip install psycopg2-binary
 ## 문의 및 지원
 
 문제가 발생하면 GitHub Issues에 등록해주세요!
+
 
 

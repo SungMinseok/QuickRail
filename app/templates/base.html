@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}QuickRail{% endblock %}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚄</text></svg>">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <style>
         * {
@@ -26,6 +27,12 @@
             justify-content: space-between;
             align-items: center;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            height: 52px;
         }
         
         .navbar-brand {
@@ -53,15 +60,46 @@
             background: rgba(255,255,255,0.1);
         }
         
+        .navbar-link.active {
+            background: rgba(255,255,255,0.2);
+            font-weight: 600;
+        }
+
+        .navbar-user {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.35rem 0.75rem;
+        }
+
+        .navbar-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 1px solid rgba(255,255,255,0.25);
+            background: rgba(255,255,255,0.12);
+        }
+
+        .navbar-user-text {
+            color: #ecf0f1;
+            font-weight: 600;
+            max-width: 160px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
         .container {
             max-width: 1400px;
             margin: 0 auto;
             padding: 2rem;
+            margin-top: 45px; /* 네비게이션 바 높이만큼 여백 추가 */
         }
         
         .flash-messages {
             position: fixed;
-            top: 80px;
+            top: 90px; /* 네비게이션 바 아래 */
             right: 20px;
             z-index: 1000;
             min-width: 300px;
@@ -201,19 +239,153 @@
             font-size: 0.9rem;
             margin-left: 0.5rem;
         }
+        
+        /* 현재 접속자 패널 */
+        #onlineUsersPanel {
+            position: fixed;
+            top: 60px;
+            right: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 999;
+            min-width: 200px;
+            max-width: 300px;
+            transition: all 0.3s ease;
+        }
+        
+        #onlineUsersPanel.collapsed {
+            min-width: auto;
+            max-width: 50px;
+        }
+        
+        #onlineUsersPanel.collapsed .online-users-content {
+            display: none;
+        }
+
+        /* 접었을 때: 👥 아이콘 + (+/−) 버튼만 노출 */
+        #onlineUsersPanel.collapsed .online-users-header h4 {
+            display: none;
+        }
+        .online-users-collapsed-icon {
+            display: none;
+            font-size: 1rem;
+            align-items: center;
+            justify-content: center;
+            margin-right: auto;
+        }
+        #onlineUsersPanel.collapsed .online-users-collapsed-icon {
+            display: inline-flex;
+        }
+        
+        #onlineUsersPanel.collapsed .online-users-toggle {
+            border-radius: 8px;
+            padding: 0.5rem;
+        }
+        
+        .online-users-header {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8f9fa;
+            border-radius: 8px 8px 0 0;
+        }
+        
+        .online-users-header h4 {
+            margin: 0;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .online-users-toggle {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2rem;
+            color: #666;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        
+        .online-users-toggle:hover {
+            background: rgba(0, 0, 0, 0.05);
+        }
+        
+        .online-users-content {
+            padding: 0.75rem 1rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .online-user-item {
+            padding: 0.5rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+        }
+        
+        .online-user-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #27ae60;
+            display: inline-block;
+        }
+        
+        .online-user-name {
+            color: #333;
+            flex: 1;
+        }
+        
+        .online-users-empty {
+            color: #999;
+            font-size: 0.85rem;
+            text-align: center;
+            padding: 1rem 0;
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
 <body>
     <nav class="navbar">
-        <a href="{{ url_for('main.projects') }}" class="navbar-brand">QuickRail</a>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <a href="{{ url_for('main.projects') }}" class="navbar-brand">QuickRail</a>
+            {% if project is defined and project %}
+            <span style="color: #95a5a6;">|</span>
+            <span style="color: #ecf0f1; font-size: 1.1rem;">{{ project.name }}</span>
+            <span style="color: #95a5a6;">|</span>
+            <div style="display: flex; gap: 0.5rem;">
+                <a href="{{ url_for('main.dashboard', project_id=project.id) }}" 
+                   class="navbar-link {% if request.endpoint == 'main.dashboard' %}active{% endif %}" 
+                   style="padding: 0.25rem 0.75rem;">📊 대시보드</a>
+                <a href="{{ url_for('main.cases', project_id=project.id) }}" 
+                   class="navbar-link {% if request.endpoint == 'main.cases' %}active{% endif %}" 
+                   style="padding: 0.25rem 0.75rem;">📝 케이스</a>
+                <a href="{{ url_for('main.runs', project_id=project.id) }}" 
+                   class="navbar-link {% if request.endpoint in ['main.runs', 'main.run_execute'] %}active{% endif %}" 
+                   style="padding: 0.25rem 0.75rem;">▶️ 런</a>
+            </div>
+            {% endif %}
+        </div>
         <div class="navbar-menu">
             {% if current_user.is_authenticated %}
-                {% if current_user.is_admin() %}
+                {% if current_user.is_super_admin() %}
                 <a href="{{ url_for('main.manage_users') }}" class="navbar-link">👥 회원관리</a>
                 {% endif %}
-                <a href="{{ url_for('main.profile') }}" class="navbar-link">⚙️ 계정정보</a>
-                <span style="color: #ecf0f1;">{{ current_user.name }}</span>
+                <a href="{{ url_for('main.feedback_list') }}" class="navbar-link">💬 피드백</a>
+                <a href="{{ url_for('main.settings') }}" class="navbar-link">⚙️ 설정</a>
+                <a href="{{ url_for('main.profile') }}" class="navbar-link navbar-user" title="{{ current_user.email }}">
+                    <img class="navbar-avatar"
+                         src="{{ url_for('api.profile_avatar') }}"
+                         onerror="this.style.display='none';"
+                         alt="avatar">
+                    <span class="navbar-user-text">{{ current_user.name }}</span>
+                </a>
                 <a href="{{ url_for('auth.logout') }}" class="navbar-link">로그아웃</a>
             {% else %}
                 <a href="{{ url_for('auth.login') }}" class="navbar-link">로그인</a>
@@ -232,6 +404,24 @@
         {% endwith %}
     </div>
     
+    {% if current_user.is_authenticated %}
+    <!-- 현재 접속자 패널 -->
+    <div id="onlineUsersPanel" class="{% if session.get('onlineUsersPanelCollapsed') %}collapsed{% endif %}">
+        <div class="online-users-header">
+            <span class="online-users-collapsed-icon" title="접속자">👥</span>
+            <h4>👥 접속자 (<span id="onlineUsersCount">1</span>)</h4>
+            <button class="online-users-toggle" onclick="toggleOnlineUsersPanel()" title="접기/펼치기">
+                <span id="onlineUsersToggleIcon">−</span>
+            </button>
+        </div>
+        <div class="online-users-content">
+            <div id="onlineUsersList">
+                <div class="online-users-empty">불러오는 중...</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
     <div class="container">
         {% block content %}{% endblock %}
     </div>
@@ -244,6 +434,75 @@
                 setTimeout(() => alert.remove(), 300);
             });
         }, 5000);
+
+        // 현재 접속자 패널 토글
+        function toggleOnlineUsersPanel() {
+            const panel = document.getElementById('onlineUsersPanel');
+            if (!panel) return;
+            panel.classList.toggle('collapsed');
+            const icon = document.getElementById('onlineUsersToggleIcon');
+            if (icon) {
+                icon.textContent = panel.classList.contains('collapsed') ? '+' : '−';
+            }
+            // 상태 저장
+            const isCollapsed = panel.classList.contains('collapsed');
+            fetch('/api/online-users-panel-state', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({collapsed: isCollapsed})
+            }).catch(err => console.error('패널 상태 저장 실패:', err));
+        }
+
+        async function refreshOnlineUsers() {
+            const list = document.getElementById('onlineUsersList');
+            const countEl = document.getElementById('onlineUsersCount');
+            if (!list || !countEl) return;
+            try {
+                const res = await fetch('/api/presence/online', { cache: 'no-store' });
+                if (!res.ok) throw new Error(`online fetch failed (${res.status})`);
+                const data = await res.json();
+                countEl.textContent = data.count ?? 0;
+                if (!data.users || data.users.length === 0) {
+                    list.innerHTML = '<div class="online-users-empty">접속자 없음</div>';
+                    return;
+                }
+                list.innerHTML = data.users.map(u => `
+                    <div class="online-user-item">
+                        <span class="online-user-indicator"></span>
+                        <span class="online-user-name">${u.name ?? ''}</span>
+                    </div>
+                `).join('');
+            } catch (err) {
+                list.innerHTML = '<div class="online-users-empty">접속자 로드 실패</div>';
+                console.error('접속자 로드 실패:', err);
+            }
+        }
+
+        async function heartbeatPresence() {
+            try {
+                await fetch('/api/presence/heartbeat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: '{}'
+                });
+            } catch (err) {
+                // noop
+            }
+        }
+
+        // {% if current_user.is_authenticated %}
+        document.addEventListener('DOMContentLoaded', function() {
+            // 초기 토글 아이콘 동기화
+            const panel = document.getElementById('onlineUsersPanel');
+            const icon = document.getElementById('onlineUsersToggleIcon');
+            if (panel && icon) {
+                icon.textContent = panel.classList.contains('collapsed') ? '+' : '−';
+            }
+            heartbeatPresence().finally(() => refreshOnlineUsers());
+            setInterval(heartbeatPresence, 25000);
+            setInterval(refreshOnlineUsers, 10000);
+        });
+        // {% endif %}
     </script>
     {% block extra_js %}{% endblock %}
 </body>

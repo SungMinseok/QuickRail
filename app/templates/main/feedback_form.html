@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+{% block title %}{% if post %}피드백 수정{% else %}피드백 작성{% endif %}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 260px;
+    gap: 1rem;
+  }
+  @media (max-width: 900px) {
+    .form-row { grid-template-columns: 1fr; }
+  }
+  .help {
+    color: #7f8c8d;
+    font-size: 0.9rem;
+    margin-top: 0.35rem;
+  }
+  .checkbox-row {
+    display:flex;
+    gap: 1rem;
+    align-items:center;
+    flex-wrap: wrap;
+    margin-top: 0.25rem;
+  }
+  .checkbox-row label {
+    display:flex;
+    align-items:center;
+    gap:0.4rem;
+    cursor: pointer;
+    user-select: none;
+  }
+  .file-picker {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .file-list {
+    margin-top: 0.75rem;
+    padding-left: 0;
+    color: #2c3e50;
+    list-style: none;
+  }
+  .file-list li {
+    margin: 0.15rem 0;
+    word-break: break-all;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid #eee;
+    border-radius: 6px;
+    background: #fafafa;
+  }
+  .file-item-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .file-remove {
+    border: 1px solid #ddd;
+    background: white;
+    color: #444;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 900;
+    line-height: 1;
+  }
+  .file-remove:hover { background: #f2f2f2; }
+  .file-empty {
+    margin-top: 0.5rem;
+    color: #7f8c8d;
+    font-size: 0.9rem;
+  }
+  .hidden-input {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
+    <h2 style="margin:0;">{% if post %}피드백 수정{% else %}피드백 작성{% endif %}</h2>
+    <a href="{{ url_for('main.feedback_list') }}" class="btn btn-secondary">목록</a>
+  </div>
+
+  <form method="POST" enctype="multipart/form-data" style="margin-top: 1rem;">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">제목</label>
+        <input class="form-control" type="text" name="title" value="{{ post.title if post else '' }}" maxlength="300" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">상태</label>
+        {% set current_status = (post.status if post else 'To do') %}
+        <select class="form-control" name="status">
+          {% for s in ["To do", "In progress", "Done", "Won't do"] %}
+            <option value="{{ s }}" {% if current_status == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+        <div class="help">피드백 진행 상태를 선택하세요.</div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">{% if is_admin %}관리자 옵션{% else %}옵션{% endif %}</label>
+      <div class="checkbox-row">
+        {% if is_admin %}
+          <label>
+            <input type="checkbox" name="is_notice" value="1" {% if post and post.is_notice %}checked{% endif %}>
+            공지사항(상단 고정)
+          </label>
+        {% endif %}
+        <label>
+          <input type="checkbox" name="is_admin_only" value="1" {% if post and post.is_admin_only %}checked{% endif %}>
+          관리자만 보기
+        </label>
+      </div>
+      {% if is_admin %}
+        <div class="help">공지글은 최상단에 고정되며, 여러 개일 수 있습니다.</div>
+      {% else %}
+        <div class="help">관리자만 보이는 비공개 피드백으로 등록됩니다(작성자/관리자만 열람 가능).</div>
+      {% endif %}
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">내용</label>
+      <textarea class="form-control" name="content" rows="14" required>{{ post.content if post else '' }}</textarea>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">첨부 (스크린샷/영상, 여러 개 가능)</label>
+      <div class="file-picker">
+        <button type="button" class="btn btn-secondary" onclick="openFeedbackFilePicker()">파일 추가</button>
+        <span class="help" style="margin:0;">여러 개 선택 가능 · 이미지/영상</span>
+      </div>
+      <input id="feedbackAttachmentsInput" class="hidden-input" type="file" name="attachments" multiple accept="image/*,video/*">
+      <ul id="feedbackAttachmentsList" class="file-list"></ul>
+      <div id="feedbackAttachmentsEmpty" class="file-empty">첨부된 파일이 없습니다.</div>
+      <div class="help">권장 제한: 파일 1개당 25MB · 전체 요청 64MB (환경변수로 조정 가능)</div>
+    </div>
+
+    <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
+      <a href="{{ url_for('main.feedback_list') }}" class="btn btn-secondary">취소</a>
+      <button type="submit" class="btn btn-primary">{% if post %}저장{% else %}등록{% endif %}</button>
+    </div>
+  </form>
+
+  {% if post and post.attachments and post.attachments|length > 0 %}
+    <div class="form-group" style="margin-top: 1.25rem;">
+      <label class="form-label">기존 첨부</label>
+      <ul class="file-list" style="margin-top:0.5rem;">
+        {% for a in post.attachments %}
+          <li>
+            <div class="file-item-name" title="{{ a.original_name }}">
+              {{ a.original_name }}
+              {% if a.file_size %}
+                <span class="help" style="margin-left:0.35rem;">({{ (a.file_size / 1024 / 1024)|round(2) }} MB)</span>
+              {% endif %}
+            </div>
+            <div style="display:flex; gap:0.4rem; align-items:center;">
+              <a class="btn btn-secondary" style="padding:0.35rem 0.6rem;" href="{{ url_for('main.feedback_attachment_file', attachment_id=a.id) }}" target="_blank">보기</a>
+              <a class="btn btn-primary" style="padding:0.35rem 0.6rem;" href="{{ url_for('main.feedback_attachment_file', attachment_id=a.id, download=1) }}">다운로드</a>
+              <form method="POST" action="{{ url_for('main.feedback_attachment_delete', attachment_id=a.id) }}" onsubmit="return confirm('이 첨부를 삭제할까요?');" style="margin:0;">
+                <button type="submit" class="file-remove" title="삭제">×</button>
+              </form>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+      <div class="help">수정 화면에서는 기존 첨부를 유지하거나 개별 삭제할 수 있습니다.</div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // 누적 선택 + 개별 삭제를 위해 DataTransfer로 input.files를 관리
+  const _fbDt = new DataTransfer();
+
+  function openFeedbackFilePicker() {
+    const input = document.getElementById('feedbackAttachmentsInput');
+    if (input) input.click();
+  }
+
+  function formatBytes(bytes) {
+    if (!Number.isFinite(bytes) || bytes < 0) return '';
+    const mb = bytes / 1024 / 1024;
+    if (mb >= 1) return `${mb.toFixed(2)} MB`;
+    const kb = bytes / 1024;
+    return `${kb.toFixed(0)} KB`;
+  }
+
+  function renderFileList(files) {
+    const list = document.getElementById('feedbackAttachmentsList');
+    const empty = document.getElementById('feedbackAttachmentsEmpty');
+    if (!list || !empty) return;
+
+    list.innerHTML = '';
+    if (!files || files.length === 0) {
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+    Array.from(files).forEach((f, idx) => {
+      const li = document.createElement('li');
+      const size = formatBytes(f.size);
+
+      const name = document.createElement('div');
+      name.className = 'file-item-name';
+      name.title = f.name;
+      name.textContent = size ? `${f.name} (${size})` : f.name;
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'file-remove';
+      btn.title = '첨부 취소';
+      btn.textContent = '×';
+      btn.addEventListener('click', function() {
+        removeSelectedFile(idx);
+      });
+
+      li.appendChild(name);
+      li.appendChild(btn);
+      list.appendChild(li);
+    });
+  }
+
+  function syncInputFiles() {
+    const input = document.getElementById('feedbackAttachmentsInput');
+    if (!input) return;
+    input.files = _fbDt.files;
+    renderFileList(input.files);
+  }
+
+  function removeSelectedFile(index) {
+    const files = Array.from(_fbDt.files);
+    if (index < 0 || index >= files.length) return;
+    _fbDt.items.clear();
+    files.forEach((f, i) => {
+      if (i !== index) _fbDt.items.add(f);
+    });
+    syncInputFiles();
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    const input = document.getElementById('feedbackAttachmentsInput');
+    if (!input) return;
+    input.addEventListener('change', function() {
+      // "파일 추가" UX: 기존 선택에 새로 고른 파일을 누적
+      Array.from(input.files).forEach(f => _fbDt.items.add(f));
+      // 같은 파일 다시 선택 가능하도록 value 초기화
+      input.value = '';
+      syncInputFiles();
+    });
+    syncInputFiles();
+  });
+</script>
+{% endblock %}
+
+

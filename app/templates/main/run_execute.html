@@ -4,21 +4,81 @@
 
 {% block extra_css %}
 <style>
-    .run-execute-layout {
-        display: flex;
-        gap: 0;
-        height: calc(100vh - 150px);
-        position: relative;
+    /* ========================================
+       1. 페이지 전체 스크롤 제거 (html, body 고정)
+       ======================================== */
+    html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden; /* 브라우저 스크롤 완전 차단 */
     }
     
-    .run-cases-sidebar {
+    /* ========================================
+       2. 메인 래퍼 (높이 확정)
+       ======================================== */
+    .main-wrapper {
+        height: calc(100vh - 80px); /* 네비게이션 바 제외 */
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        min-height: 0;
+        padding: 0 1rem 0.25rem 1rem; /* 좌우, 하단 여백 추가 (하단 패딩 축소) */
+    }
+    
+    /* ========================================
+       3. 헤더 영역 (고정 크기)
+       ======================================== */
+    .header-section {
+        flex-shrink: 0; /* 고정 크기 유지 */
+        margin-bottom: 1rem; /* 헤더와 메인 레이아웃 사이 여백 */
+    }
+    
+    /* ========================================
+       4. 메인 레이아웃 (Flex 확장)
+       ======================================== */
+    .run-execute-layout {
+        flex: 1; /* 남은 공간 모두 차지 */
+        display: flex;
+        gap: 1rem; /* 케이스 목록과 상세 패널 사이 여백 */
+        position: relative;
+        overflow: hidden; /* 레이아웃 자체는 스크롤 없음 */
+        min-height: 0; /* Flexbox 제약 해제 - 핵심! */
+    }
+    
+    /* ========================================
+       5. 케이스 목록 (스크롤 영역)
+       ======================================== */
+    #runCasesSidebar {
         background: white;
         border-radius: 8px;
         padding: 1rem;
-        overflow-y: auto;
-        min-width: 300px;
-        max-width: 800px;
-        flex-shrink: 0;
+        overflow-y: auto; /* 세로 스크롤 활성화 */
+        overflow-x: hidden; /* 가로 스크롤 숨김 */
+        min-height: 0; /* Flexbox 제약 해제 - 핵심! */
+        max-height: 95%; /* 부모 높이를 넘지 않도록 */
+        flex: 1; /* 1:1 비율을 위해 flex: 1 설정 */
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* 그림자 추가 */
+        min-width: 0; /* flex 아이템이 축소되지 않도록 */
+        height: fit-content; /* 내용물 높이에 맞춤 */
+        align-self: flex-start; /* 상단 정렬 */
+    }
+    
+    /* 패널이 접혀 있을 때 */
+    .run-execute-layout.panel-collapsed #runCasesSidebar {
+        flex: 1 1 100%; /* 전체 너비 차지 */
+        max-width: 100%;
+    }
+    
+    .run-execute-layout.panel-collapsed .resizer {
+        display: none !important;
+        flex: 0 0 0 !important;
+        width: 0 !important;
+        min-width: 0 !important;
+        max-width: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        visibility: hidden !important;
     }
     
     .resizer {
@@ -27,7 +87,7 @@
         cursor: col-resize;
         position: relative;
         flex-shrink: 0;
-        transition: background 0.2s;
+        max-height: 95%; /* 부모 높이를 넘지 않도록 */
     }
     
     .resizer:hover {
@@ -83,13 +143,100 @@
         border-left: 4px solid #bdc3c7;
     }
     
+    /* 결과 배지 스타일 */
+    .result-badge {
+        display: inline-block;
+    }
+    
+    .result-badge.result-pass {
+        background: #27ae60 !important;
+        color: white !important;
+    }
+    
+    .result-badge.result-fail {
+        background: #e74c3c !important;
+        color: white !important;
+    }
+    
+    .result-badge.result-blocked {
+        background: #95a5a6 !important;
+        color: white !important;
+    }
+    
+    .result-badge.result-retest {
+        background: #f39c12 !important;
+        color: white !important;
+    }
+    
+    .result-badge.result-na {
+        background: #bdc3c7 !important;
+        color: white !important;
+    }
+    
+    .result-badge.result-none {
+        background: #ecf0f1 !important;
+        color: #7f8c8d !important;
+    }
+    
+    /* ========================================
+       6. 상세 패널 (스크롤 영역)
+       ======================================== */
     .case-detail-panel {
         background: white;
         border-radius: 8px;
         padding: 1.5rem;
-        overflow-y: auto;
-        flex: 1;
-        min-width: 400px;
+        overflow-y: auto; /* 세로 스크롤 활성화 */
+        overflow-x: visible; /* 버튼이 보이도록 */
+        flex: 1; /* 남은 공간 차지 */
+        min-width: 300px;
+        position: relative;
+        min-height: 0; /* Flexbox 제약 해제 - 핵심! */
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* 그림자 추가 */
+        max-height: 95%; /* 부모 높이를 넘지 않도록 */
+
+    }
+    
+    .case-detail-panel.collapsed {
+        display: none !important;
+        flex: 0 0 0 !important;
+        min-width: 0 !important;
+        max-width: 0 !important;
+        width: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: hidden !important;
+        visibility: hidden !important;
+    }
+    
+    .panel-toggle-btn {
+        position: absolute;
+        left: -40px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 40px;
+        height: 80px;
+        background: #3498db;
+        border: none;
+        border-radius: 8px 0 0 8px;
+        color: white;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        transition: background 0.2s;
+        z-index: 100; /* 케이스 리스트보다 위에 표시 */
+        box-shadow: -2px 0 8px rgba(0,0,0,0.15);
+    }
+    
+    .panel-toggle-btn:hover {
+        background: #2980b9;
+    }
+    
+    .case-detail-panel.collapsed .panel-toggle-btn {
+        left: auto;
+        right: -40px;
+        border-radius: 0 8px 8px 0;
     }
     
     .status-buttons {
@@ -185,6 +332,19 @@
     
     .stat-item {
         flex: 1;
+        transition: transform 0.2s, background 0.2s;
+        padding: 0.5rem;
+        border-radius: 4px;
+    }
+    
+    .stat-item.clickable:hover {
+        transform: translateY(-2px);
+        background: #f5f5f5;
+    }
+    
+    .stat-item.clickable.active {
+        background: #e3f2fd;
+        border: 2px solid #2196f3;
     }
     
     .stat-value {
@@ -197,17 +357,55 @@
         color: #666;
     }
     
+    /* 단축키 가이드 - cases 페이지와 동일한 스타일 */
     .hotkey-hint {
         position: fixed;
         bottom: 20px;
         right: 20px;
-        background: rgba(0,0,0,0.8);
+        background: rgba(0, 0, 0, 0.85);
         color: white;
-        padding: 1rem;
+        padding: 1rem 1.5rem;
         border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
         font-size: 0.85rem;
-        max-width: 250px;
         z-index: 1000;
+        min-width: 280px;
+        display: block; /* 항상 표시 */
+    }
+    
+    .hotkey-hint h4 {
+        margin: 0 0 0.75rem 0;
+        font-size: 0.95rem;
+        color: #3498db;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        padding-bottom: 0.5rem;
+    }
+    
+    .hotkey-hint .shortcut-item {
+        display: flex;
+        justify-content: space-between;
+        margin: 0.4rem 0;
+        line-height: 1.4;
+    }
+    
+    .hotkey-hint .shortcut-key {
+        background: rgba(255, 255, 255, 0.15);
+        padding: 0.15rem 0.5rem;
+        border-radius: 3px;
+        font-family: monospace;
+        font-size: 0.8rem;
+        margin-left: 1rem;
+        white-space: nowrap;
+    }
+    
+    .hotkey-hint .shortcut-desc {
+        flex: 1;
+    }
+    
+    .hotkey-hint hr {
+        margin: 0.75rem 0;
+        border: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.2);
     }
     
     .hotkey-hint.hidden {
@@ -260,67 +458,272 @@
         0%, 100% { opacity: 1; }
         50% { opacity: 0.6; }
     }
+    
+    /* Toast 알림 스타일 */
+    .toast-container {
+        position: fixed;
+        top: 80px; /* 네비게이션 바 아래 */
+        right: 20px;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .toast {
+        background: #2ecc71;
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        min-width: 300px;
+        max-width: 400px;
+        animation: slideInRight 0.3s ease-out;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-weight: 500;
+    }
+    
+    .toast.error {
+        background: #e74c3c;
+    }
+    
+    .toast.warning {
+        background: #f39c12;
+    }
+    
+    .toast.info {
+        background: #3498db;
+    }
+    
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes slideOutRight {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    }
+    
+    .toast.hiding {
+        animation: slideOutRight 0.3s ease-out forwards;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<div style="margin-bottom: 1rem;">
-    <h2>{{ run.name }}</h2>
-    <p style="color: #666;">{{ run.description }}</p>
-</div>
+<!-- Toast 알림 컨테이너 -->
+<div class="toast-container" id="toastContainer"></div>
 
-<!-- 실시간 새로고침 인디케이터 -->
-<div class="refresh-indicator active" id="refreshIndicator">
-    🔄 실시간 동기화 중 (5초)
-</div>
+<!-- 메인 래퍼: 높이 확정 -->
+<div class="main-wrapper">
+    <!-- 헤더 영역 (고정) -->
+    <div class="header-section">
+        <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: flex-start;">
+            <div style="flex: 1;">
+                <h2 style="margin: 0 0 0.5rem 0;">
+                    {{ run.name }}
+                    {% if run.is_closed %}
+                    <span style="background: #95a5a6; color: white; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.9rem; margin-left: 0.5rem;">완료됨 (읽기 전용)</span>
+                    {% endif %}
+                </h2>
+                <div style="color: #666; margin: 0;">
+                    {% if run.build_label %}
+                    <div style="margin-bottom: 0.25rem;">
+                        <span style="color: #3498db; font-weight: 500;">🏷️ Build: {{ run.build_label }}</span>
+                    </div>
+                    {% endif %}
+                    {% if run.description %}
+                    <p style="margin: 0;">{{ run.description }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
+                <button onclick="togglePanel()" class="btn btn-secondary" id="topPanelToggleBtn" style="display: flex; align-items: center; gap: 0.5rem;" title="우측 패널 접기/펼치기">
+                    <span id="topPanelToggleIcon">◀</span>
+                    <span>패널</span>
+                </button>
+                <!-- Export 버튼 + 컨텍스트 메뉴 (CSV/위키) -->
+                <div style="position: relative;">
+                    <button onclick="toggleExportMenu(event)" class="btn btn-secondary" style="display: flex; align-items: center; gap: 0.5rem;" title="내보내기 옵션">
+                        <span>📤</span>
+                        <span>내보내기</span>
+                        <span style="font-size: 0.9rem;">▾</span>
+                    </button>
+                    <div id="exportMenu" style="display:none; position:absolute; right:0; top: 42px; min-width: 180px; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.12); z-index: 11000; overflow:hidden;">
+                        <button class="btn btn-secondary" style="width:100%; border:none; border-radius:0; text-align:left; padding: 0.6rem 0.9rem; background: transparent;" onclick="exportCSV(); closeExportMenu();">
+                            📄 CSV
+                        </button>
+                        <button class="btn btn-secondary" style="width:100%; border:none; border-radius:0; text-align:left; padding: 0.6rem 0.9rem; background: transparent;" onclick="openWikiDraftModal(); closeExportMenu();">
+                            📝 위키 초안
+                        </button>
+                    </div>
+                </div>
+                {% if not run.is_closed %}
+                <button onclick="resetAllResults()" class="btn btn-secondary" style="display: flex; align-items: center; gap: 0.5rem;" title="모든 결과를 미실행으로 초기화">
+                    <span>🔄</span>
+                    <span>초기화</span>
+                </button>
+                <button onclick="completeRun()" class="btn btn-success" style="display: flex; align-items: center; gap: 0.5rem;" title="테스트런 완료 처리">
+                    <span>✓</span>
+                    <span>완료</span>
+                </button>
+                {% endif %}
+                <button onclick="goBackToRuns()" class="btn btn-primary" style="display: flex; align-items: center; gap: 0.5rem;" title="런 목록으로 돌아가기">
+                    <span>←</span>
+                    <span>뒤로가기</span>
+                </button>
+            </div>
+        </div>
 
-<!-- 통계 바 -->
-<div class="stats-bar">
+        <!-- 실시간 새로고침 인디케이터 -->
+        {% if not run.is_closed %}
+        <div class="refresh-indicator active" id="refreshIndicator">
+            🔄 실시간 동기화 중 (5초)
+        </div>
+        {% endif %}
+
+        <!-- 통계 바 -->
+        <div class="stats-bar" style="margin-bottom: 0.5rem;">
     <div class="stat-item">
         <div class="stat-value" id="statProgress" style="color: #3498db;">{{ stats.progress }}%</div>
         <div class="stat-label">진행률</div>
     </div>
     <div class="stat-item">
+        <div class="stat-value" id="statPassRate" style="color: {% if stats.pass_rate >= 90 %}#27ae60{% elif stats.pass_rate >= 70 %}#f39c12{% else %}#e74c3c{% endif %};">{{ stats.pass_rate }}%</div>
+        <div class="stat-label">성공률</div>
+    </div>
+    <div class="stat-item">
         <div class="stat-value" id="statExecuted">{{ stats.executed }} / {{ stats.total }}</div>
         <div class="stat-label">실행</div>
     </div>
-    <div class="stat-item">
+    <div class="stat-item clickable" onclick="filterByStatus('pass')" style="cursor: pointer;" title="Pass 케이스만 보기">
         <div class="stat-value" id="statPass" style="color: #27ae60;">{{ stats.pass }}</div>
         <div class="stat-label">Pass</div>
     </div>
-    <div class="stat-item">
+    <div class="stat-item clickable" onclick="filterByStatus('fail')" style="cursor: pointer;" title="Fail 케이스만 보기">
         <div class="stat-value" id="statFail" style="color: #e74c3c;">{{ stats.fail }}</div>
         <div class="stat-label">Fail</div>
     </div>
-    <div class="stat-item">
+    <div class="stat-item clickable" onclick="filterByStatus('blocked')" style="cursor: pointer;" title="Blocked 케이스만 보기">
         <div class="stat-value" id="statBlocked" style="color: #95a5a6;">{{ stats.blocked }}</div>
         <div class="stat-label">Blocked</div>
     </div>
-    <div class="stat-item">
+    <div class="stat-item clickable" onclick="filterByStatus('retest')" style="cursor: pointer;" title="Retest 케이스만 보기">
         <div class="stat-value" id="statRetest" style="color: #f39c12;">{{ stats.retest }}</div>
         <div class="stat-label">Retest</div>
     </div>
-</div>
+    <div class="stat-item clickable" onclick="filterByStatus('na')" style="cursor: pointer;" title="N/A 케이스만 보기">
+        <div class="stat-value" id="statNA" style="color: #bdc3c7;">{{ stats.na }}</div>
+        <div class="stat-label">N/A</div>
+    </div>
+    <div class="stat-item clickable" onclick="filterByStatus('none')" style="cursor: pointer;" title="미실행 케이스만 보기">
+        <div class="stat-value" id="statPending" style="color: #999;">{{ stats.total - stats.executed }}</div>
+        <div class="stat-label">미실행</div>
+    </div>
+    </div>
+    
+    <!-- 프로그레스 바 -->
+    <div style="background: #ecf0f1; height: 10px; border-radius: 15px; overflow: hidden; position: relative; margin-bottom: 0.5rem;">
+        <div id="progressPass" style="position: absolute; height: 100%; background: #27ae60; width: 0%; transition: width 0.3s;"></div>
+        <div id="progressFail" style="position: absolute; height: 100%; background: #e74c3c; width: 0%; left: 0%; transition: width 0.3s, left 0.3s;"></div>
+        <div id="progressBlocked" style="position: absolute; height: 100%; background: #95a5a6; width: 0%; left: 0%; transition: width 0.3s, left 0.3s;"></div>
+        <div id="progressRetest" style="position: absolute; height: 100%; background: #f39c12; width: 0%; left: 0%; transition: width 0.3s, left 0.3s;"></div>
+        <div id="progressNA" style="position: absolute; height: 100%; background: #bdc3c7; width: 0%; left: 0%; transition: width 0.3s, left 0.3s;"></div>
+    </div>
+    
+    <!-- 필터 상태 표시 및 초기화 버튼 -->
+    <div id="filterStatus" style="display: none; background: #e3f2fd; padding: 0.5rem 1rem; border-radius: 4px; margin-bottom: 0.5rem; justify-content: space-between; align-items: center;">
+        <span id="filterText" style="color: #1976d2; font-weight: 500;"></span>
+        <button onclick="clearFilter()" class="btn btn-secondary" style="padding: 0.25rem 0.75rem; font-size: 0.85rem;">✕ 필터 해제</button>
+    </div>
+    </div>
+    
+    <!-- AI 요약 영역 (완료된 런만) -->
+    {% if run.is_closed %}
+    <div id="aiSummarySection" style="background: #f8f9fa; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border: 1px solid #e0e0e0; max-height: 250px; display: flex; flex-direction: column;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-shrink: 0;">
+            <h4 style="margin: 0;">🤖 AI 요약</h4>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <select id="summaryPromptSelect" style="padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                    <option value="">프롬프트 선택...</option>
+                </select>
+                <button id="generateSummaryBtn" onclick="generateAISummary()" class="btn btn-primary" style="padding: 0.5rem 1rem;">
+                    {% if run.summary %}요약 재생성{% else %}요약 생성{% endif %}
+                </button>
+            </div>
+        </div>
+        <!-- 프로그레스 바 및 진행 상황 표시 -->
+        <div id="aiSummaryProgress" style="display: none; margin-bottom: 0.5rem; flex-shrink: 0;">
+            <div style="background: #e0e0e0; height: 8px; border-radius: 4px; overflow: hidden; margin-bottom: 0.25rem;">
+                <div id="aiSummaryProgressBar" style="background: #3498db; height: 100%; width: 0%; transition: width 0.3s;"></div>
+            </div>
+            <div id="aiSummaryProgressText" style="font-size: 0.85rem; color: #666; text-align: center;">
+                준비 중...
+            </div>
+        </div>
+        <div id="aiSummaryContent" style="flex: 1; overflow-y: auto; min-height: 0;">
+            {% if run.summary %}
+            <div style="position: relative; background: white; padding: 1rem; border-radius: 4px;">
+                <div style="position: absolute; top: 0.5rem; right: 0.5rem; display: flex; gap: 0.25rem;">
+                    <button onclick="copyAISummary()" class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.75rem; font-size: 0.85rem;" title="AI 요약 복사">
+                        📋 복사
+                    </button>
+                    <button onclick="openAISummaryInNewWindow()" class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.75rem; font-size: 0.85rem;" title="새 창에서 열기">
+                        🔗 새창
+                    </button>
+                </div>
+                <div id="aiSummaryText" style="white-space: pre-wrap; line-height: 1.6; padding-right: 6rem;">{{ run.summary }}</div>
+            </div>
+            {% else %}
+            <div style="color: #999; padding: 1rem; text-align: center;">
+                AI 요약이 생성되지 않았습니다. 위의 드롭다운에서 프롬프트를 선택하고 "요약 생성" 버튼을 클릭하세요.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
 
-<div class="run-execute-layout">
-    <!-- 좌측: RunCase 목록 -->
-    <div class="run-cases-sidebar" id="runCasesSidebar">
+    <!-- 메인 레이아웃 (Flex 확장) -->
+    <div class="run-execute-layout">
+        <!-- 좌측: RunCase 목록 (스크롤 영역) -->
+        <div id="runCasesSidebar">
         <h4 style="margin-bottom: 1rem;">케이스 목록</h4>
         {% for item in run_cases %}
         <div class="run-case-item {% if item.result %}status-{{ item.result.status }}{% endif %} {% if loop.index0 == 0 %}active{% endif %}" 
              data-case-id="{{ item.case.id }}"
              onclick="selectCase({{ loop.index0 }})">
-            <div style="font-weight: 500; margin-bottom: 0.25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" 
-                 title="{{ item.case.title }}">
+            <div style="font-weight: 500; margin-bottom: 0.25rem; word-wrap: break-word; line-height: 1.4;">
                 #{{ item.case.id }} {{ item.case.title }}
             </div>
-            <div style="font-size: 0.85rem; color: #666;">
-                {% if item.result %}
-                    <span style="color: {% if item.result.status == 'pass' %}#27ae60{% elif item.result.status == 'fail' %}#e74c3c{% else %}#95a5a6{% endif %};">
-                        {{ item.result.status|upper }}
-                    </span>
-                {% else %}
-                    <span style="color: #999;">미실행</span>
+            <div style="font-size: 0.85rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    {% if item.result %}
+                        <span class="result-badge result-{{ item.result.status }}" style="padding: 0.15rem 0.5rem; border-radius: 4px; font-weight: 600; font-size: 0.75rem;">
+                            {{ item.result.status|upper }}
+                        </span>
+                    {% else %}
+                        <span class="result-badge result-none" style="padding: 0.15rem 0.5rem; border-radius: 4px; font-weight: 600; font-size: 0.75rem;">미실행</span>
+                    {% endif %}
+                </div>
+                {% if item.sidebar_comment %}
+                <div class="case-comment-preview" style="font-size: 0.7rem; color: #666; margin-top: 0.25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 600px; max-width: 600px;">
+                    💬 {{ item.sidebar_comment }}
+                </div>
                 {% endif %}
             </div>
         </div>
@@ -332,55 +735,1051 @@
     
     <!-- 우측: 케이스 상세 + 결과 입력 -->
     <div class="case-detail-panel" id="caseDetailPanel">
+        <button class="panel-toggle-btn" id="panelToggleBtn" onclick="togglePanel()" title="패널 접기/펼치기">
+            ◀
+        </button>
         <div id="caseContent">
             <!-- JavaScript로 동적 로드 -->
         </div>
     </div>
 </div>
+<!-- /main-wrapper -->
 
-<!-- 핫키 힌트 -->
+<!-- 코멘트 입력 모달 -->
+<div id="commentModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 8px; padding: 1.5rem; max-width: 500px; width: 90%;">
+        <h4 style="margin: 0 0 1rem 0;">코멘트 입력</h4>
+        <textarea id="modalCommentInput" class="form-control" placeholder="결과에 대한 설명을 입력하세요..." style="min-height: 100px; width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 1rem;"></textarea>
+        <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+            <button class="btn btn-secondary" onclick="closeCommentModal()">취소</button>
+            <button class="btn btn-success" onclick="confirmCommentModal()">확인</button>
+        </div>
+    </div>
+</div>
+
+<!-- Jira 버그 등록 모달 -->
+<div id="jiraIssueModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10001; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 8px; padding: 1.5rem; max-width: 720px; width: 92%; max-height: 92vh; overflow: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+            <h4 style="margin: 0;">🐛 Jira 버그 등록</h4>
+            <button class="btn btn-secondary" onclick="closeJiraIssueModal()" style="padding: 0.35rem 0.75rem;">닫기</button>
+        </div>
+        
+        <div style="margin-bottom: 1rem;">
+            <label style="display: block; font-weight: 600; margin-bottom: 0.35rem;">Summary <span style="color: #e74c3c;">*</span></label>
+            <input type="text" id="jiraSummaryInput" class="form-control" placeholder="필수 - 이슈 제목" style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 0.35rem;">Component</label>
+                <input type="text" id="jiraComponentInput" class="form-control" placeholder="예: UI,Matchmaking" style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+            </div>
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 0.35rem;">Labels</label>
+                <input type="text" id="jiraLabelsInput" class="form-control" placeholder="예: quickrail,run" style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 1rem;">
+            <label style="display: block; font-weight: 600; margin-bottom: 0.35rem;">Priority</label>
+            <input type="text" id="jiraPriorityInput" class="form-control" placeholder="예: High" style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+        </div>
+        
+        <div style="margin-bottom: 1rem;">
+            <label style="display: block; font-weight: 600; margin-bottom: 0.35rem;">Steps</label>
+            <textarea id="jiraStepsInput" class="form-control" placeholder="선택 - 재현 스텝" style="width: 100%; min-height: 90px; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; resize: vertical;"></textarea>
+        </div>
+        
+        <div style="margin-bottom: 1rem;">
+            <label style="display: block; font-weight: 600; margin-bottom: 0.35rem;">Description</label>
+            <textarea id="jiraDescriptionInput" class="form-control" placeholder="선택 - 상세 설명" style="width: 100%; min-height: 120px; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; resize: vertical;"></textarea>
+        </div>
+        
+        <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+            <button class="btn btn-secondary" onclick="closeJiraIssueModal()">취소</button>
+            <button class="btn btn-danger" onclick="confirmJiraIssueModal()">등록</button>
+        </div>
+        
+        <div style="margin-top: 0.75rem; color: #666; font-size: 0.9rem;">
+            설정이 없으면 등록에 실패할 수 있습니다. <code>/settings</code>에서 Jira 설정을 확인하세요.
+        </div>
+    </div>
+</div>
+
+<!-- 위키 초안 작성 모달 -->
+<div id="wikiDraftModal" style="display:none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10002; align-items: center; justify-content: center;">
+    <div style="background:#fff; width: min(1100px, 92vw); max-height: 88vh; border-radius: 10px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.25); display:flex; flex-direction: column;">
+        <div style="padding: 1rem 1.25rem; border-bottom: 1px solid #e0e0e0; display:flex; align-items:center; justify-content: space-between; gap: 1rem;">
+            <div>
+                <h3 style="margin:0;">📝 위키 초안 작성</h3>
+                <div style="color:#666; font-size:0.9rem; margin-top:0.25rem;">
+                    런 결과 기반으로 위키에 붙여넣기 쉬운 초안을 생성합니다. (다운로드/복사 지원)
+                </div>
+            </div>
+            <div style="display:flex; gap:0.5rem; align-items:center;">
+                <button class="btn btn-secondary" onclick="copyWikiMarkdownToClipboard()" title="마크다운을 클립보드로 복사">📋 복사</button>
+                <button class="btn btn-secondary" onclick="closeWikiDraftModal()">닫기</button>
+            </div>
+        </div>
+
+        <div style="padding: 1rem 1.25rem; overflow:auto; flex:1;">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div>
+                    <div style="background:#f8f9fa; border:1px solid #e0e0e0; border-radius: 8px; padding: 0.9rem; margin-bottom: 1rem;">
+                        <div style="display:flex; justify-content: space-between; align-items:center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                            <h4 style="margin:0;">1. QA 정보</h4>
+                            <small style="color:#666;">(2열 5행)</small>
+                        </div>
+                        <table style="width:100%; border-collapse: collapse; background:#fff; border:1px solid #eee;">
+                            <tbody>
+                                <tr>
+                                    <td style="width: 32%; padding: 0.55rem; border-bottom:1px solid #eee; background:#fafafa;"><strong>1-1. QA 대상</strong><br><small style="color:#666;">(JIRA 링크)</small></td>
+                                    <td style="padding: 0.55rem; border-bottom:1px solid #eee;"><input id="wikiQaTarget" class="form-control" placeholder="예: https://.../browse/PROJ-123" /></td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 0.55rem; border-bottom:1px solid #eee; background:#fafafa;"><strong>1-2. 기획 문서</strong><br><small style="color:#666;">(wiki 링크 등)</small></td>
+                                    <td style="padding: 0.55rem; border-bottom:1px solid #eee;"><input id="wikiPlanDoc" class="form-control" placeholder="예: https://wiki/..." /></td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 0.55rem; border-bottom:1px solid #eee; background:#fafafa;"><strong>1-3. QA 환경</strong><br><small style="color:#666;">(빌드/서버 등)</small></td>
+                                    <td style="padding: 0.55rem; border-bottom:1px solid #eee;"><input id="wikiQaEnv" class="form-control" placeholder="예: Build, 서버, 스테이지 등" /></td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 0.55rem; border-bottom:1px solid #eee; background:#fafafa;"><strong>1-4. 타겟 업데이트</strong><br><small style="color:#666;">(JIRA 필터 링크)</small></td>
+                                    <td style="padding: 0.55rem; border-bottom:1px solid #eee;"><input id="wikiTargetUpdate" class="form-control" placeholder="예: https://.../issues/?jql=..." /></td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 0.55rem; background:#fafafa;"><strong>1-5. 담당 QA</strong></td>
+                                    <td style="padding: 0.55rem;"><input id="wikiQaOwner" class="form-control" placeholder="예: 홍길동" /></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div style="background:#f8f9fa; border:1px solid #e0e0e0; border-radius: 8px; padding: 0.9rem;">
+                        <div style="display:flex; justify-content: space-between; align-items:center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                            <h4 style="margin:0;">2. QA 결과/현황</h4>
+                            <button class="btn btn-primary" onclick="aiFillWikiDraft()" title="가능한 항목을 AI로 자동 작성">🤖 AI 작성</button>
+                        </div>
+
+                        <div style="background:#fff; border:1px solid #eee; border-radius: 6px; padding: 0.75rem; margin-bottom: 0.75rem;">
+                            <div style="display:flex; align-items:center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                <strong>2-1. 테스트 결과</strong>
+                                <small style="color:#666;">(도넛 차트 + 수치)</small>
+                            </div>
+                            <div style="display:grid; grid-template-columns: 180px 1fr; gap: 0.75rem; align-items:center;">
+                                <canvas id="wikiDonutChart" width="180" height="180" style="border:1px solid #eee; border-radius: 8px;"></canvas>
+                                <table style="width:100%; border-collapse: collapse;">
+                                    <thead>
+                                        <tr>
+                                            <th style="text-align:left; padding:0.35rem; border-bottom:1px solid #eee;">항목</th>
+                                            <th style="text-align:right; padding:0.35rem; border-bottom:1px solid #eee;">값</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="wikiResultStatsTable"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- 1열 2행 표 형태: header(1행) + content(2행) -->
+                        <table style="width:100%; border-collapse: collapse; background:#fff; border:1px solid #eee; margin-bottom: 0.75rem;">
+                            <tr><th style="text-align:left; padding:0.6rem; background:#fafafa; border-bottom:1px solid #eee;">2-2. 잔여 이슈 (JIRA 링크 등)</th></tr>
+                            <tr><td style="padding:0.6rem;"><textarea id="wikiRemainingIssues" class="form-control" rows="3" placeholder="- PROJ-123&#10;- https://..."></textarea></td></tr>
+                        </table>
+                        <table style="width:100%; border-collapse: collapse; background:#fff; border:1px solid #eee; margin-bottom: 0.75rem;">
+                            <tr><th style="text-align:left; padding:0.6rem; background:#fafafa; border-bottom:1px solid #eee;">2-3. Closed 티켓 (기획의도/수정안함 등)</th></tr>
+                            <tr><td style="padding:0.6rem;"><textarea id="wikiClosedIssues" class="form-control" rows="3" placeholder="- PROJ-456 (Won't Fix) : ..."></textarea></td></tr>
+                        </table>
+                        <table style="width:100%; border-collapse: collapse; background:#fff; border:1px solid #eee;">
+                            <tr><th style="text-align:left; padding:0.6rem; background:#fafafa; border-bottom:1px solid #eee;">2-4. 기타 참고사항</th></tr>
+                            <tr><td style="padding:0.6rem;"><textarea id="wikiNotes" class="form-control" rows="4" placeholder="- ..."></textarea></td></tr>
+                        </table>
+                    </div>
+                </div>
+
+                <div>
+                    <div style="background:#f8f9fa; border:1px solid #e0e0e0; border-radius: 8px; padding: 0.9rem; margin-bottom: 1rem;">
+                        <div style="display:flex; justify-content: space-between; align-items:center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                            <h4 style="margin:0;">3. 체크리스트</h4>
+                            <small style="color:#666;">(선택 + 실시간 미리보기)</small>
+                        </div>
+                        <div style="display:flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">
+                            <label style="display:flex; align-items:center; gap:0.35rem;"><input type="checkbox" class="wikiCol" value="section1" checked onchange="renderWikiChecklistPreview()"> 섹션1</label>
+                            <label style="display:flex; align-items:center; gap:0.35rem;"><input type="checkbox" class="wikiCol" value="section2" checked onchange="renderWikiChecklistPreview()"> 섹션2</label>
+                            <label style="display:flex; align-items:center; gap:0.35rem;"><input type="checkbox" class="wikiCol" value="title" checked onchange="renderWikiChecklistPreview()"> 타이틀</label>
+                            <label style="display:flex; align-items:center; gap:0.35rem;"><input type="checkbox" class="wikiCol" value="result" checked onchange="renderWikiChecklistPreview()"> 결과</label>
+                            <label style="display:flex; align-items:center; gap:0.35rem;"><input type="checkbox" class="wikiCol" value="bug" onchange="renderWikiChecklistPreview()"> 버그</label>
+                            <label style="display:flex; align-items:center; gap:0.35rem;"><input type="checkbox" class="wikiCol" value="comment" onchange="renderWikiChecklistPreview()"> 참고(코멘트)</label>
+                        </div>
+                        <div style="display:flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem; color:#666; font-size:0.9rem;">
+                            <span style="font-weight:600; color:#333;">포함 상태:</span>
+                            <label style="display:flex; align-items:center; gap:0.35rem;"><input type="checkbox" class="wikiStatus" value="pass" checked onchange="renderWikiChecklistPreview()"> Pass</label>
+                            <label style="display:flex; align-items:center; gap:0.35rem;"><input type="checkbox" class="wikiStatus" value="fail" checked onchange="renderWikiChecklistPreview()"> Fail</label>
+                            <label style="display:flex; align-items:center; gap:0.35rem;"><input type="checkbox" class="wikiStatus" value="blocked" checked onchange="renderWikiChecklistPreview()"> Blocked</label>
+                            <label style="display:flex; align-items:center; gap:0.35rem;"><input type="checkbox" class="wikiStatus" value="retest" checked onchange="renderWikiChecklistPreview()"> Retest</label>
+                            <label style="display:flex; align-items:center; gap:0.35rem;"><input type="checkbox" class="wikiStatus" value="na" checked onchange="renderWikiChecklistPreview()"> N/A</label>
+                            <label style="display:flex; align-items:center; gap:0.35rem;"><input type="checkbox" class="wikiStatus" value="notrun" checked onchange="renderWikiChecklistPreview()"> 미실행</label>
+                        </div>
+                        <div style="max-height: 280px; overflow:auto; background:#fff; border:1px solid #eee; border-radius: 6px;">
+                            <table style="width:100%; border-collapse: collapse;">
+                                <thead id="wikiChecklistHead" style="position: sticky; top: 0; background:#fafafa; border-bottom: 1px solid #eee;"></thead>
+                                <tbody id="wikiChecklistBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div style="background:#f8f9fa; border:1px solid #e0e0e0; border-radius: 8px; padding: 0.9rem;">
+                        <h4 style="margin:0 0 0.5rem 0;">위키 링크</h4>
+                        <input id="wikiLink" class="form-control" placeholder="예: Confluence 페이지 URL (pageId 포함 시 서버 업로드 시도 가능)" />
+                        <div style="display:flex; gap:0.5rem; margin-top: 0.75rem; flex-wrap: wrap;">
+                            <button class="btn btn-secondary" onclick="downloadWikiMarkdown()">⬇️ MD 다운로드</button>
+                            <button class="btn btn-secondary" onclick="downloadWikiPDF()">⬇️ PDF(프린트) 다운로드</button>
+                            <button class="btn btn-success" onclick="publishWikiDraft()">📤 위키로 내보내기</button>
+                        </div>
+                        <div style="margin-top:0.75rem;">
+                            <h4 style="margin:0 0 0.5rem 0;">미리보기(Markdown)</h4>
+                            <pre id="wikiPreview" style="white-space: pre-wrap; background:#fff; border:1px solid #eee; border-radius: 6px; padding: 0.75rem; max-height: 260px; overflow:auto; margin:0;"></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="padding: 0.9rem 1.25rem; border-top: 1px solid #e0e0e0; display:flex; justify-content: space-between; align-items:center; gap: 0.75rem;">
+            <small style="color:#666;">
+                팁: “📋 복사” 후 위키 편집기에 붙여넣으면 가장 빠릅니다. (서버 위키 연동은 선택 사항)
+            </small>
+            <div style="display:flex; gap:0.5rem;">
+                <button class="btn btn-secondary" onclick="closeWikiDraftModal()">닫기</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 단축키 가이드 -->
 <div class="hotkey-hint" id="hotkeyHint">
-    <strong>⌨️ 단축키</strong><br>
-    <kbd>1</kbd> Pass<br>
-    <kbd>2</kbd> Fail<br>
-    <kbd>3</kbd> Blocked<br>
-    <kbd>4</kbd> Retest<br>
-    <kbd>5</kbd> N/A<br>
-    <hr style="margin: 0.5rem 0; border: none; border-top: 1px solid rgba(255,255,255,0.3);">
-    <kbd>n</kbd> 다음 미실행<br>
-    <kbd>p</kbd> 이전 미실행<br>
-    <kbd>j/k</kbd> 다음/이전<br>
-    <kbd>g</kbd> 첫 케이스<br>
-    <kbd>G</kbd> 마지막 케이스<br>
-    <kbd>c</kbd> 코멘트 포커스<br>
-    <kbd>r</kbd> 런 통계 새로고침<br>
-    <kbd>?</kbd> 힌트 토글<br>
-    <kbd>Esc</kbd> 코멘트 닫기
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; border-bottom: 1px solid rgba(255, 255, 255, 0.2); padding-bottom: 0.5rem;">
+        <h4 style="margin: 0; font-size: 0.95rem; color: #3498db;">⌨️ 단축키</h4>
+        <button onclick="toggleHotkeyHint()" style="background: transparent; border: none; color: white; cursor: pointer; font-size: 1.2rem; padding: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;" title="접기/펼치기">−</button>
+    </div>
+    <div id="hotkeyContent">
+    <div class="shortcut-item">
+        <span class="shortcut-desc">Pass</span>
+        <span class="shortcut-key">1</span>
+    </div>
+    <div class="shortcut-item">
+        <span class="shortcut-desc">Fail</span>
+        <span class="shortcut-key">2</span>
+    </div>
+    <div class="shortcut-item">
+        <span class="shortcut-desc">Blocked</span>
+        <span class="shortcut-key">3</span>
+    </div>
+    <div class="shortcut-item">
+        <span class="shortcut-desc">Retest</span>
+        <span class="shortcut-key">4</span>
+    </div>
+    <div class="shortcut-item">
+        <span class="shortcut-desc">N/A</span>
+        <span class="shortcut-key">5</span>
+    </div>
+    <hr>
+    <div class="shortcut-item">
+        <span class="shortcut-desc">다음 미실행</span>
+        <span class="shortcut-key">n</span>
+    </div>
+    <div class="shortcut-item">
+        <span class="shortcut-desc">이전 미실행</span>
+        <span class="shortcut-key">p</span>
+    </div>
+    <div class="shortcut-item">
+        <span class="shortcut-desc">다음/이전</span>
+        <span class="shortcut-key">j / k</span>
+    </div>
+    <div class="shortcut-item">
+        <span class="shortcut-desc">첫 케이스</span>
+        <span class="shortcut-key">g</span>
+    </div>
+    <div class="shortcut-item">
+        <span class="shortcut-desc">마지막 케이스</span>
+        <span class="shortcut-key">Shift + G</span>
+    </div>
+    <div class="shortcut-item">
+        <span class="shortcut-desc">런 통계 새로고침</span>
+        <span class="shortcut-key">r</span>
+    </div>
+    <div class="shortcut-item">
+        <span class="shortcut-desc">코멘트 닫기</span>
+        <span class="shortcut-key">Esc</span>
+    </div>
+    </div>
 </div>
 
 <script>
 const runId = {{ run.id }};
+const isRunClosed = {{ 'true' if run.is_closed else 'false' }};
 let runCases = {{ run_cases | tojson }};
 let currentIndex = 0;
 let autoRefreshInterval = null;
 let isRefreshing = false;
+let currentFilter = null; // 현재 필터 상태
+const runName = {{ run.name | tojson }};
+const runBuildLabel = {{ (run.build_label or '') | tojson }};
+const currentUserName = {{ (current_user.name if current_user.is_authenticated else '') | tojson }};
+
+let jiraPublicConfig = null;
+
+// Toast 알림 함수
+function showToast(message, type = 'success', duration = 3000) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    // 아이콘 설정
+    let icon = '✓';
+    if (type === 'error') icon = '✕';
+    else if (type === 'warning') icon = '⚠';
+    else if (type === 'info') icon = 'ℹ';
+    
+    toast.innerHTML = `
+        <span style="font-size: 1.2rem;">${icon}</span>
+        <span>${message}</span>
+    `;
+    
+    container.appendChild(toast);
+    
+    // 자동 제거
+    setTimeout(() => {
+        toast.classList.add('hiding');
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 300);
+    }, duration);
+}
 
 // 초기 케이스 로드
 window.onload = function() {
     loadCase(0);
-    startAutoRefresh();
+    loadJiraPublicConfig();
+    if (!isRunClosed) {
+        startAutoRefresh();
+    }
     initResizer();
     loadSidebarWidth();
+    loadPanelState();
+    updateProgressBar();
+    loadHotkeyHintState();
+    
+    // 완료된 런인 경우 요약 프롬프트 목록 로드
+    if (isRunClosed) {
+        loadSummaryPrompts();
+    }
 };
+
+// ===== Export 메뉴 (CSV/위키) =====
+function toggleExportMenu(e) {
+    try { e?.stopPropagation(); } catch (_) {}
+    const menu = document.getElementById('exportMenu');
+    if (!menu) return;
+    const isOpen = menu.style.display === 'block';
+    menu.style.display = isOpen ? 'none' : 'block';
+}
+function closeExportMenu() {
+    const menu = document.getElementById('exportMenu');
+    if (menu) menu.style.display = 'none';
+}
+document.addEventListener('click', function() {
+    closeExportMenu();
+});
+
+// ===== Wiki Draft Modal =====
+function openWikiDraftModal() {
+    const modal = document.getElementById('wikiDraftModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    initWikiDraftDefaults();
+    renderWikiRunStats();
+    renderWikiChecklistPreview();
+    updateWikiPreview();
+    // 도넛은 canvas가 보이는 상태에서 그려야 선명함
+    setTimeout(() => renderWikiDonutChart(), 0);
+}
+function closeWikiDraftModal() {
+    const modal = document.getElementById('wikiDraftModal');
+    if (modal) modal.style.display = 'none';
+}
+document.getElementById('wikiDraftModal')?.addEventListener('click', function(e) {
+    if (e.target === this) closeWikiDraftModal();
+});
+
+function initWikiDraftDefaults() {
+    // 이미 사용자가 입력했으면 덮어쓰지 않음
+    const envEl = document.getElementById('wikiQaEnv');
+    if (envEl && !envEl.value) {
+        envEl.value = runBuildLabel ? `Build: ${runBuildLabel}` : '';
+    }
+    const ownerEl = document.getElementById('wikiQaOwner');
+    if (ownerEl && !ownerEl.value) {
+        ownerEl.value = currentUserName || '';
+    }
+
+    // 잔여 이슈 기본값: 런 결과의 bug_links를 중복 제거하여 채움(사용자 입력 없을 때만)
+    const remainingEl = document.getElementById('wikiRemainingIssues');
+    if (remainingEl && !remainingEl.value) {
+        const links = extractBugLinksFromRunCases();
+        if (links.length) remainingEl.value = links.map(l => `- ${l}`).join('\n');
+    }
+}
+
+function getWikiStatusKey(rc) {
+    const st = rc?.result?.status;
+    if (!st) return 'notrun';
+    const s = String(st).toLowerCase();
+    if (['pass','fail','blocked','retest','na'].includes(s)) return s;
+    return s;
+}
+
+function computeWikiStats() {
+    const counts = { pass:0, fail:0, blocked:0, retest:0, na:0, notrun:0, total:0, executed:0 };
+    counts.total = runCases.length;
+    runCases.forEach(rc => {
+        const key = getWikiStatusKey(rc);
+        if (counts[key] == null) counts[key] = 0;
+        counts[key] += 1;
+        if (key !== 'notrun') counts.executed += 1;
+    });
+    return counts;
+}
+
+function renderWikiRunStats() {
+    const tbody = document.getElementById('wikiResultStatsTable');
+    if (!tbody) return;
+    const c = computeWikiStats();
+    const rows = [
+        ['Total', c.total],
+        ['Executed', c.executed],
+        ['Pass', c.pass],
+        ['Fail', c.fail],
+        ['Blocked', c.blocked],
+        ['Retest', c.retest],
+        ['N/A', c.na],
+        ['NotRun', c.notrun],
+    ];
+    tbody.innerHTML = rows.map(([k,v]) => (
+        `<tr><td style="padding:0.35rem; border-bottom:1px solid #f0f0f0;">${k}</td><td style="padding:0.35rem; text-align:right; border-bottom:1px solid #f0f0f0;">${v}</td></tr>`
+    )).join('');
+}
+
+function renderWikiDonutChart() {
+    const canvas = document.getElementById('wikiDonutChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const c = computeWikiStats();
+    const data = [
+        { key:'pass', label:'Pass', value:c.pass, color:'#27ae60' },
+        { key:'fail', label:'Fail', value:c.fail, color:'#e74c3c' },
+        { key:'blocked', label:'Blocked', value:c.blocked, color:'#95a5a6' },
+        { key:'retest', label:'Retest', value:c.retest, color:'#f39c12' },
+        { key:'na', label:'N/A', value:c.na, color:'#bdc3c7' },
+        { key:'notrun', label:'NotRun', value:c.notrun, color:'#dddddd' },
+    ].filter(d => d.value > 0);
+
+    const total = data.reduce((a, d) => a + d.value, 0) || 1;
+    const cx = canvas.width / 2, cy = canvas.height / 2;
+    const rOuter = Math.min(cx, cy) - 8;
+    const rInner = rOuter * 0.62;
+
+    ctx.clearRect(0,0,canvas.width, canvas.height);
+    let start = -Math.PI / 2;
+    data.forEach(d => {
+        const ang = (d.value / total) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, rOuter, start, start + ang);
+        ctx.closePath();
+        ctx.fillStyle = d.color;
+        ctx.fill();
+        start += ang;
+    });
+    // inner hole
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.arc(cx, cy, rInner, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+
+    // center text
+    const passRate = Math.round((c.pass / Math.max(1, c.executed)) * 100);
+    ctx.fillStyle = '#333';
+    ctx.font = 'bold 18px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${passRate}%`, cx, cy - 6);
+    ctx.font = '12px Arial';
+    ctx.fillStyle = '#666';
+    ctx.fillText('Pass Rate', cx, cy + 12);
+}
+
+function extractBugLinksFromRunCases() {
+    const links = new Set();
+    runCases.forEach(rc => {
+        const bl = rc?.result?.bug_links;
+        if (bl && String(bl).trim()) {
+            // 콤마/공백/줄바꿈 기반으로 분리
+            String(bl).split(/[\s,]+/).map(s => s.trim()).filter(Boolean).forEach(x => links.add(x));
+        }
+    });
+    return Array.from(links);
+}
+
+function getSelectedWikiCols() {
+    return Array.from(document.querySelectorAll('.wikiCol'))
+        .filter(el => el.checked)
+        .map(el => el.value);
+}
+function getSelectedWikiStatuses() {
+    return new Set(Array.from(document.querySelectorAll('.wikiStatus'))
+        .filter(el => el.checked)
+        .map(el => el.value));
+}
+
+function splitSectionPath(path) {
+    if (!path) return { section1:'', section2:'' };
+    const parts = String(path).split('>').map(s => s.trim()).filter(Boolean);
+    return {
+        section1: parts[0] || '',
+        section2: parts[1] || '',
+    };
+}
+
+function renderWikiChecklistPreview() {
+    const head = document.getElementById('wikiChecklistHead');
+    const body = document.getElementById('wikiChecklistBody');
+    if (!head || !body) return;
+
+    const cols = getSelectedWikiCols();
+    const statusSet = getSelectedWikiStatuses();
+
+    const colTitles = {
+        section1: '섹션1',
+        section2: '섹션2',
+        title: '타이틀',
+        result: '결과',
+        bug: '버그',
+        comment: '참고',
+    };
+
+    head.innerHTML = `<tr>${cols.map(c => `<th style="text-align:left; padding:0.5rem; border-bottom:1px solid #eee;">${colTitles[c] || c}</th>`).join('')}</tr>`;
+
+    const rows = [];
+    runCases.forEach(rc => {
+        const st = getWikiStatusKey(rc);
+        if (!statusSet.has(st)) return;
+        const sec = splitSectionPath(rc?.case?.section_path);
+        const title = rc?.case?.title || '';
+        const bug = rc?.result?.bug_links || '';
+        const comment = rc?.result?.comment || rc?.sidebar_comment || '';
+
+        const cell = (key) => {
+            if (key === 'section1') return sec.section1;
+            if (key === 'section2') return sec.section2;
+            if (key === 'title') return title;
+            if (key === 'result') return st;
+            if (key === 'bug') return bug;
+            if (key === 'comment') return comment;
+            return '';
+        };
+        rows.push(`<tr>${cols.map(k => `<td style="padding:0.45rem; border-bottom:1px solid #f0f0f0; vertical-align: top;">${escapeHtml(String(cell(k) || ''))}</td>`).join('')}</tr>`);
+    });
+    body.innerHTML = rows.join('') || `<tr><td style="padding:0.75rem; color:#999;" colspan="${Math.max(1, cols.length)}">표시할 항목이 없습니다.</td></tr>`;
+    updateWikiPreview();
+}
+
+function escapeHtml(text) {
+    const map = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'};
+    return String(text || '').replace(/[&<>"']/g, m => map[m]);
+}
+
+function collectWikiDraft() {
+    const c = computeWikiStats();
+    const qaTarget = document.getElementById('wikiQaTarget')?.value || '';
+    const planDoc = document.getElementById('wikiPlanDoc')?.value || '';
+    const qaEnv = document.getElementById('wikiQaEnv')?.value || '';
+    const targetUpdate = document.getElementById('wikiTargetUpdate')?.value || '';
+    const qaOwner = document.getElementById('wikiQaOwner')?.value || '';
+    const remaining = document.getElementById('wikiRemainingIssues')?.value || '';
+    const closed = document.getElementById('wikiClosedIssues')?.value || '';
+    const notes = document.getElementById('wikiNotes')?.value || '';
+    const wikiLink = document.getElementById('wikiLink')?.value || '';
+
+    const cols = getSelectedWikiCols();
+    const statusSet = getSelectedWikiStatuses();
+    const checklistRows = runCases
+        .filter(rc => statusSet.has(getWikiStatusKey(rc)))
+        .map(rc => {
+            const sec = splitSectionPath(rc?.case?.section_path);
+            return {
+                section1: sec.section1,
+                section2: sec.section2,
+                title: rc?.case?.title || '',
+                result: getWikiStatusKey(rc),
+                bug: rc?.result?.bug_links || '',
+                comment: rc?.result?.comment || rc?.sidebar_comment || '',
+            };
+        });
+
+    return {
+        run: { name: runName, build_label: runBuildLabel },
+        qa_info: { qa_target: qaTarget, plan_doc: planDoc, qa_env: qaEnv, target_update: targetUpdate, qa_owner: qaOwner },
+        stats: c,
+        qa_status: { remaining_issues: remaining, closed_issues: closed, notes: notes },
+        checklist: { cols, rows: checklistRows },
+        wiki_link: wikiLink,
+    };
+}
+
+function generateWikiMarkdown(d) {
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    const runTitle = d?.run?.name || runName;
+    const build = d?.run?.build_label || '';
+    const s = d?.stats || computeWikiStats();
+    const passRate = Math.round((s.pass / Math.max(1, s.executed)) * 100);
+
+    const qa = d?.qa_info || {};
+    const qs = d?.qa_status || {};
+
+    const md = [];
+    md.push(`# QA Wiki Draft`);
+    md.push(`- Run: **${runTitle}**`);
+    if (build) md.push(`- Build: **${build}**`);
+    md.push(`- Date: ${dateStr}`);
+    md.push('');
+
+    md.push(`## 1. QA 정보`);
+    md.push(`| 항목 | 내용 |`);
+    md.push(`|---|---|`);
+    md.push(`| 1-1. QA 대상 (JIRA) | ${qa.qa_target || ''} |`);
+    md.push(`| 1-2. 기획 문서 | ${qa.plan_doc || ''} |`);
+    md.push(`| 1-3. QA 환경 | ${qa.qa_env || ''} |`);
+    md.push(`| 1-4. 타겟 업데이트 | ${qa.target_update || ''} |`);
+    md.push(`| 1-5. 담당 QA | ${qa.qa_owner || ''} |`);
+    md.push('');
+
+    md.push(`## 2. QA 결과/현황`);
+    md.push(`| 2-1. 테스트 결과 |`);
+    md.push(`|---|`);
+    md.push(`| Total ${s.total} / Executed ${s.executed} / Pass ${s.pass} / Fail ${s.fail} / Blocked ${s.blocked} / Retest ${s.retest} / N/A ${s.na} / NotRun ${s.notrun} (PassRate ${passRate}%) |`);
+    md.push('');
+
+    md.push(`| 2-2. 잔여 이슈 |`);
+    md.push(`|---|`);
+    md.push(`| ${normalizeMultilineCell(qs.remaining_issues || '')} |`);
+    md.push('');
+
+    md.push(`| 2-3. Closed 티켓(기획의도/수정안함 등) |`);
+    md.push(`|---|`);
+    md.push(`| ${normalizeMultilineCell(qs.closed_issues || '')} |`);
+    md.push('');
+
+    md.push(`| 2-4. 기타 참고사항 |`);
+    md.push(`|---|`);
+    md.push(`| ${normalizeMultilineCell(qs.notes || '')} |`);
+    md.push('');
+
+    md.push(`## 3. 체크리스트`);
+    const cols = d?.checklist?.cols || getSelectedWikiCols();
+    const rows = d?.checklist?.rows || [];
+    const colTitle = { section1:'섹션1', section2:'섹션2', title:'타이틀', result:'결과', bug:'버그', comment:'참고' };
+    md.push(`| ${cols.map(c => colTitle[c] || c).join(' | ')} |`);
+    md.push(`| ${cols.map(() => '---').join(' | ')} |`);
+    rows.forEach(r => {
+        md.push(`| ${cols.map(c => sanitizeMdCell(r[c] || '')).join(' | ')} |`);
+    });
+    md.push('');
+
+    if (d?.wiki_link) {
+        md.push(`---`);
+        md.push(`Wiki Link: ${d.wiki_link}`);
+        md.push('');
+    }
+
+    return md.join('\n');
+}
+
+function sanitizeMdCell(v) {
+    return String(v || '').replace(/\r?\n/g, '<br>').replace(/\|/g, '\\|');
+}
+function normalizeMultilineCell(v) {
+    const s = String(v || '').trim();
+    if (!s) return '';
+    return s.replace(/\r?\n/g, '<br>').replace(/\|/g, '\\|');
+}
+
+function updateWikiPreview() {
+    const pre = document.getElementById('wikiPreview');
+    if (!pre) return;
+    const md = generateWikiMarkdown(collectWikiDraft());
+    pre.textContent = md;
+}
+
+function downloadWikiMarkdown() {
+    const md = generateWikiMarkdown(collectWikiDraft());
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `run_${runId}_${(runName || 'wiki').replace(/[\\/:*?"<>|]/g, '_')}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    showToast('MD 파일 다운로드를 시작했습니다.', 'success');
+}
+
+function downloadWikiPDF() {
+    // 브라우저 Print to PDF 방식(추가 라이브러리 없이 동작)
+    const md = generateWikiMarkdown(collectWikiDraft());
+    const w = window.open('', '_blank');
+    if (!w) {
+        showToast('팝업 차단으로 PDF 창을 열 수 없습니다.', 'error');
+        return;
+    }
+    const html = `
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Wiki Draft - ${escapeHtml(runName)}</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 24px; }
+    pre { white-space: pre-wrap; border: 1px solid #ddd; padding: 12px; border-radius: 8px; }
+    h1,h2 { margin: 0 0 12px 0; }
+    .hint { color:#666; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <h2>Wiki Draft (Markdown)</h2>
+  <div class="hint">인쇄 대화상자에서 “PDF로 저장”을 선택하세요.</div>
+  <pre>${escapeHtml(md)}</pre>
+</body>
+</html>`;
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    // NOTE: 새 창 HTML 내부에 "</scr" + "ipt>" 같은 시퀀스가 포함되면 부모 문서의 script 태그가 끊길 수 있어, 여기서 print를 호출
+    try {
+        w.focus();
+        setTimeout(() => {
+            try { w.print(); } catch (_) {}
+        }, 150);
+    } catch (_) {}
+}
+
+async function copyWikiMarkdownToClipboard() {
+    const md = generateWikiMarkdown(collectWikiDraft());
+    try {
+        await navigator.clipboard.writeText(md);
+        showToast('위키 초안(Markdown)이 클립보드에 복사되었습니다.', 'success');
+    } catch (e) {
+        // fallback
+        const ta = document.createElement('textarea');
+        ta.value = md;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        showToast('클립보드 복사(대체 방식) 완료.', 'success');
+    }
+}
+
+async function publishWikiDraft() {
+    const d = collectWikiDraft();
+    const wikiUrl = (d.wiki_link || '').trim();
+    const md = generateWikiMarkdown(d);
+    if (!wikiUrl) {
+        showToast('위키 링크를 입력하세요.', 'warning');
+        return;
+    }
+
+    // 우선 서버 업로드 시도(설정 없으면 501로 안내)
+    try {
+        const res = await fetch(`/api/runs/${runId}/wiki-draft/publish`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ wiki_url: wikiUrl, markdown: md, title: `QA Wiki Draft - ${runName}` })
+        });
+        if (res.ok) {
+            showToast('위키로 내보내기 완료(서버 업로드).', 'success');
+            window.open(wikiUrl, '_blank');
+            return;
+        }
+        const j = await res.json().catch(() => ({}));
+        if (res.status === 501) {
+            // 서버 연동 없으면: 복사 + 위키 열기 fallback
+            await copyWikiMarkdownToClipboard();
+            window.open(wikiUrl, '_blank');
+            showToast('서버 위키 연동이 없어 복사/붙여넣기 방식으로 진행합니다.', 'info', 5000);
+            return;
+        }
+        showToast(j.error || '위키 내보내기 실패', 'error', 5000);
+    } catch (e) {
+        await copyWikiMarkdownToClipboard();
+        window.open(wikiUrl, '_blank');
+        showToast('네트워크 오류로 서버 업로드 실패. 복사/붙여넣기로 대체합니다.', 'warning', 5000);
+    }
+}
+
+async function aiFillWikiDraft() {
+    const stats = computeWikiStats();
+    const test_results = runCases.map(rc => ({
+        case_title: rc?.case?.title || '',
+        status: getWikiStatusKey(rc),
+        bug_links: rc?.result?.bug_links || '',
+        comment: rc?.result?.comment || rc?.sidebar_comment || '',
+    }));
+
+    try {
+        const res = await fetch(`/api/runs/${runId}/wiki-draft/ai-fill`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                current_page_data: {
+                    run_name: runName,
+                    build_label: runBuildLabel,
+                    stats: stats,
+                    test_results: test_results
+                }
+            })
+        });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            showToast(j.error || 'AI 작성 실패', 'error', 5000);
+            return;
+        }
+
+        const remainingEl = document.getElementById('wikiRemainingIssues');
+        const closedEl = document.getElementById('wikiClosedIssues');
+        const notesEl = document.getElementById('wikiNotes');
+        if (remainingEl && j.remaining_issues) remainingEl.value = j.remaining_issues;
+        if (closedEl && j.closed_issues) closedEl.value = j.closed_issues;
+        if (notesEl && j.notes) notesEl.value = j.notes;
+
+        updateWikiPreview();
+        showToast('AI 작성 완료: 작성 가능한 항목을 채웠습니다.', 'success');
+    } catch (e) {
+        showToast('AI 작성 중 오류가 발생했습니다.', 'error', 5000);
+    }
+}
+
+// 패널 토글 함수
+function togglePanel() {
+    const panel = document.getElementById('caseDetailPanel');
+    const layout = document.querySelector('.run-execute-layout');
+    const sidebar = document.getElementById('runCasesSidebar');
+    const sideBtn = document.getElementById('panelToggleBtn');
+    const topBtn = document.getElementById('topPanelToggleBtn');
+    const topIcon = document.getElementById('topPanelToggleIcon');
+    const isCollapsed = panel.classList.toggle('collapsed');
+    
+    // 레이아웃에도 클래스 추가 (케이스 목록 확장용)
+    if (layout) {
+        if (isCollapsed) {
+            layout.classList.add('panel-collapsed');
+        } else {
+            layout.classList.remove('panel-collapsed');
+        }
+    }
+    
+    // 사이드바 너비 조정
+    if (sidebar) {
+        if (isCollapsed) {
+            // 패널 접기: 인라인 스타일 제거하여 CSS가 적용되도록 함
+            sidebar.style.flex = '';
+        } else {
+            // 패널 펼치기: 저장된 너비 복원
+            const savedWidth = localStorage.getItem('runExecuteSidebarWidth');
+            if (savedWidth) {
+                sidebar.style.flex = `0 0 ${savedWidth}px`;
+            } else {
+                sidebar.style.flex = '1'; // 기본값
+            }
+        }
+    }
+    
+    // 사이드 버튼 업데이트
+    if (sideBtn) {
+        sideBtn.textContent = isCollapsed ? '▶' : '◀';
+    }
+    
+    // 상단 버튼 업데이트
+    if (topIcon) {
+        topIcon.textContent = isCollapsed ? '▶' : '◀';
+    }
+    
+    // 상태 저장
+    localStorage.setItem('detailPanelCollapsed', isCollapsed);
+}
+
+// 패널 상태 로드
+function loadPanelState() {
+    const isCollapsed = localStorage.getItem('detailPanelCollapsed') === 'true';
+    if (isCollapsed) {
+        const panel = document.getElementById('caseDetailPanel');
+        const layout = document.querySelector('.run-execute-layout');
+        const sidebar = document.getElementById('runCasesSidebar');
+        const sideBtn = document.getElementById('panelToggleBtn');
+        const topIcon = document.getElementById('topPanelToggleIcon');
+        
+        panel.classList.add('collapsed');
+        
+        if (layout) {
+            layout.classList.add('panel-collapsed');
+        }
+        
+        // 사이드바 인라인 스타일 제거하여 CSS가 적용되도록 함
+        if (sidebar) {
+            sidebar.style.flex = '';
+        }
+        
+        if (sideBtn) {
+            sideBtn.textContent = '▶';
+        }
+        
+        if (topIcon) {
+            topIcon.textContent = '▶';
+        }
+    }
+}
+
+// 뒤로가기 - 런 목록으로 이동
+function goBackToRuns() {
+    const projectId = {{ run.project_id }};
+    window.location.href = `/p/${projectId}/runs`;
+}
+
+// 테스트런 완료
+function completeRun() {
+    if (isRunClosed) {
+        alert('이미 완료된 런입니다.');
+        return;
+    }
+    
+    if (!confirm('테스트런을 완료 처리하시겠습니까?\n완료된 런은 "완료된 런" 탭으로 이동됩니다.')) {
+        return;
+    }
+    
+    fetch(`/api/runs/{{ run.id }}/close`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('테스트런이 완료 처리되었습니다.');
+            goBackToRuns();
+        } else {
+            alert('오류: ' + (data.error || '테스트런 완료 처리에 실패했습니다.'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('테스트런 완료 처리 중 오류가 발생했습니다.');
+    });
+}
+
+// 모든 결과 초기화
+function resetAllResults() {
+    if (isRunClosed) {
+        alert('완료된 런은 결과를 초기화할 수 없습니다.');
+        return;
+    }
+    
+    if (!confirm('모든 테스트 결과를 초기화하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
+        return;
+    }
+    
+    fetch(`/api/runs/${runId}/reset`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            // 모든 케이스 결과 초기화
+            runCases.forEach((item, index) => {
+                item.result = null;
+                
+                // 사이드바 스타일 업데이트
+                const sidebarItem = document.querySelectorAll('.run-case-item')[index];
+                sidebarItem.classList.remove('status-pass', 'status-fail', 'status-blocked', 'status-retest', 'status-na');
+                
+                // 결과 배지 업데이트
+                const badge = sidebarItem.querySelector('.result-badge');
+                if (badge) {
+                    badge.className = 'result-badge result-none';
+                    badge.style.padding = '0.15rem 0.5rem';
+                    badge.style.borderRadius = '4px';
+                    badge.style.fontWeight = '600';
+                    badge.style.fontSize = '0.75rem';
+                    badge.textContent = '미실행';
+                }
+            });
+            
+            // 통계 업데이트
+            updateRunStats();
+            
+            // 현재 케이스 다시 로드
+            loadCase(currentIndex);
+            
+            alert('모든 결과가 초기화되었습니다.');
+        } else {
+            alert('초기화 실패: ' + (data.error || '알 수 없는 오류'));
+        }
+    })
+    .catch(err => {
+        console.error('초기화 오류:', err);
+        alert('초기화 중 오류가 발생했습니다.');
+    });
+}
 
 function selectCase(index) {
     currentIndex = index;
     loadCase(index);
     
-    // 사이드바 활성화 표시
-    document.querySelectorAll('.run-case-item').forEach((item, i) => {
+    // 사이드바 활성화 표시 및 스크롤
+    const sidebar = document.getElementById('runCasesSidebar');
+    const items = document.querySelectorAll('.run-case-item');
+    
+    items.forEach((item, i) => {
         if (i === index) {
             item.classList.add('active');
+            
+            // 선택된 케이스 위치 계산
+            const itemTop = item.offsetTop;
+            const itemHeight = item.offsetHeight;
+            
+            // 첫 번째 케이스: 맨 위에 표시
+            if (index === 0) {
+                sidebar.scrollTop = 0;
+            }
+            // 두 번째 이후 케이스: 항상 두 번째 위치에 표시
+            else {
+                // 첫 번째 아이템의 높이를 기준으로 두 번째 위치 계산
+                const firstItemHeight = items[0] ? items[0].offsetHeight : itemHeight;
+                const headerHeight = 60; // h4 헤더 높이 + 여유
+                
+                // 선택된 케이스가 두 번째 위치에 오도록 스크롤
+                // (헤더 높이 + 첫 번째 아이템 높이)만큼 위로 올림
+                sidebar.scrollTop = itemTop - headerHeight - firstItemHeight;
+            }
         } else {
             item.classList.remove('active');
         }
@@ -394,103 +1793,794 @@ function loadCase(index) {
     
     const html = `
         <div style="margin-bottom: 1.5rem;">
-            <h3 contenteditable="true" id="caseTitle" 
-                style="border: 1px solid transparent; padding: 0.5rem; border-radius: 4px; outline: none;" 
-                onblur="updateCaseField('title', this.textContent.trim())"
-                onfocus="this.style.border='1px solid #3498db'; this.style.background='#f0f8ff';"
-                onblur="this.style.border='1px solid transparent'; this.style.background='transparent';">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                <h3 contenteditable="${!isRunClosed}" id="caseTitle" 
+                    style="border: 1px solid transparent; padding: 0.5rem; border-radius: 4px; outline: none; flex: 1;" 
+                    ${!isRunClosed ? `onblur="updateCaseField('title', this.textContent.trim())"
+                    onfocus="this.style.border='1px solid #3498db'; this.style.background='#f0f8ff';"
+                    onblur="this.style.border='1px solid transparent'; this.style.background='transparent';"` : ''}>
 ${escapeHtml(caseData.title)}</h3>
-            <small style="color: #999;">💡 클릭하여 편집 가능</small>
+                <span style="padding: 0.25rem 0.75rem; background: #e3f2fd; color: #1976d2; border-radius: 12px; font-size: 0.85rem; white-space: nowrap; margin-left: 0.5rem; cursor: help;" 
+                      title="생성: ${caseData.created_at ? new Date(caseData.created_at).toLocaleString('ko-KR') : 'N/A'}${caseData.created_by ? ' (' + caseData.created_by + ')' : ''}&#10;수정: ${caseData.updated_at ? new Date(caseData.updated_at).toLocaleString('ko-KR') : 'N/A'}${caseData.updated_by ? ' (' + caseData.updated_by + ')' : ''}">
+                    v${caseData.version || 1}
+                </span>
+            </div>
+            ${!isRunClosed ? '<small style="color: #999;">💡 클릭하여 편집 가능 (원본 케이스에 반영됩니다)</small>' : '<small style="color: #999;">🔒 완료된 런 - 런 생성 시점의 케이스 내용 (v' + (caseData.version || 1) + ')</small>'}
         </div>
         
         <div style="margin: 1rem 0; padding: 1rem; background: #f9f9f9; border-radius: 4px;">
             <strong>우선순위:</strong> 
             <select id="casePriority" class="form-control" style="display: inline-block; width: auto; margin-left: 0.5rem;" 
-                    onchange="updateCaseField('priority', this.value)">
-                <option value="P0" ${caseData.priority === 'P0' ? 'selected' : ''}>P0</option>
-                <option value="P1" ${caseData.priority === 'P1' ? 'selected' : ''}>P1</option>
-                <option value="P2" ${caseData.priority === 'P2' ? 'selected' : ''}>P2</option>
-                <option value="P3" ${caseData.priority === 'P3' ? 'selected' : ''}>P3</option>
+                    ${isRunClosed ? 'disabled' : ''} onchange="updateCaseField('priority', this.value)">
+                <option value="Blocker" ${caseData.priority === 'Blocker' ? 'selected' : ''}>Blocker</option>
+                <option value="Critical" ${caseData.priority === 'Critical' ? 'selected' : ''}>Critical</option>
+                <option value="High" ${caseData.priority === 'High' ? 'selected' : ''}>High</option>
+                <option value="Medium" ${caseData.priority === 'Medium' ? 'selected' : ''}>Medium</option>
+                <option value="Low" ${caseData.priority === 'Low' ? 'selected' : ''}>Low</option>
             </select>
         </div>
         
         <div style="margin: 1.5rem 0;">
-            <h4>테스트 스텝 <small style="color: #999; font-weight: normal;">💡 클릭하여 편집 가능</small></h4>
-            <div contenteditable="true" id="caseSteps" 
+            <h4>테스트 스텝 ${!isRunClosed ? '<small style="color: #999; font-weight: normal;">💡 클릭하여 편집 가능 (원본 케이스에 반영)</small>' : '<small style="color: #999; font-weight: normal;">🔒 런 생성 시점 스냅샷</small>'}</h4>
+            <div contenteditable="${!isRunClosed}" id="caseSteps" 
                  style="white-space: pre-wrap; padding: 1rem; background: #f9f9f9; border-radius: 4px; border: 1px solid transparent; min-height: 100px; outline: none;"
-                 onblur="updateCaseField('steps', this.textContent.trim())"
+                 ${!isRunClosed ? `onblur="updateCaseField('steps', this.textContent.trim())"
                  onfocus="this.style.border='1px solid #3498db'; this.style.background='#f0f8ff';"
-                 onblur="this.style.border='1px solid transparent'; this.style.background='#f9f9f9';">${escapeHtml(caseData.steps) || '스텝 정보 없음'}</div>
+                 onblur="this.style.border='1px solid transparent'; this.style.background='#f9f9f9';"` : ''}>${escapeHtml(caseData.steps) || '스텝 정보 없음'}</div>
         </div>
         
         <div style="margin: 1.5rem 0;">
-            <h4>기대 결과 <small style="color: #999; font-weight: normal;">💡 클릭하여 편집 가능</small></h4>
-            <div contenteditable="true" id="caseExpected" 
+            <h4>기대 결과 ${!isRunClosed ? '<small style="color: #999; font-weight: normal;">💡 클릭하여 편집 가능 (원본 케이스에 반영)</small>' : '<small style="color: #999; font-weight: normal;">🔒 런 생성 시점 스냅샷</small>'}</h4>
+            <div contenteditable="${!isRunClosed}" id="caseExpected" 
                  style="white-space: pre-wrap; padding: 1rem; background: #f9f9f9; border-radius: 4px; border: 1px solid transparent; min-height: 100px; outline: none;"
-                 onblur="updateCaseField('expected_result', this.textContent.trim())"
+                 ${!isRunClosed ? `onblur="updateCaseField('expected_result', this.textContent.trim())"
                  onfocus="this.style.border='1px solid #3498db'; this.style.background='#f0f8ff';"
-                 onblur="this.style.border='1px solid transparent'; this.style.background='#f9f9f9';">${escapeHtml(caseData.expected) || '기대 결과 정보 없음'}</div>
+                 onblur="this.style.border='1px solid transparent'; this.style.background='#f9f9f9';"` : ''}>${escapeHtml(caseData.expected) || '기대 결과 정보 없음'}</div>
         </div>
         
         <hr style="margin: 2rem 0;">
         
+        <h4>추가 정보</h4>
+
+        <!-- Jira 원버튼 버그 등록 (요청: 추가 정보 영역 첫번째) -->
+        <div style="margin: 1rem 0; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+            <div style="min-width: 0;">
+                <label class="form-label" style="font-weight: 500; margin-bottom: 0.25rem; display: block;">🧷 Jira</label>
+                <small style="color: #666; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    원버튼으로 Jira 버그를 생성하고 링크를 자동으로 추가합니다. (설정: /settings → Jira 원버튼)
+                </small>
+            </div>
+            <button type="button" class="btn btn-danger" onclick="openJiraIssueModal()" style="padding: 0.5rem 1rem; white-space: nowrap;">
+                🐛 Jira 버그 등록
+            </button>
+        </div>
+        
+        <!-- Jira/버그 링크 (케이스 링크 + 런 버그 링크 통합) -->
+        <div style="margin: 1rem 0;">
+            <label class="form-label" style="font-weight: 500; margin-bottom: 0.5rem; display: block;">🧷 Jira/버그 링크</label>
+
+            <div style="margin-bottom: 0.75rem;">
+                <div style="font-weight: 500; color:#666; font-size:0.9rem; margin-bottom:0.35rem;">케이스 링크</div>
+                <div style="display:flex; flex-direction:column; gap:0.35rem;">
+                    ${(caseData.jira_links && caseData.jira_links.length > 0)
+                        ? caseData.jira_links.map(u => `<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" style="color:#3498db; text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🔗 ${escapeHtml(u)}</a>`).join('')
+                        : `<div style="color:#999; font-size:0.9rem;">등록된 링크가 없습니다.</div>`}
+                    ${(isRunClosed && caseData.jira_links_snapshot) ? `<div style="color:#666; font-size:0.85rem;">(스냅샷) ${escapeHtml(caseData.jira_links_snapshot)}</div>` : ''}
+                </div>
+            </div>
+
+            <div style="font-weight: 500; color:#666; font-size:0.9rem; margin-bottom:0.35rem;">런 버그 링크</div>
+            ${!isRunClosed ? `
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <input type="text" id="bugLinkInput" class="form-control" placeholder="JIRA-123 또는 https://..." 
+                       style="flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;"
+                       onkeypress="if(event.key==='Enter'){event.preventDefault();addBugLink();}">
+                <button type="button" class="btn btn-primary" onclick="addBugLink()" style="padding: 0.5rem 1rem; white-space: nowrap;">추가</button>
+            </div>
+            ` : ''}
+            <div id="bugLinksList" style="margin-top: 0.5rem;">
+                <!-- 버그 링크 목록이 여기에 표시됩니다 -->
+            </div>
+        </div>
+        
+        <!-- 코멘트 영역 -->
+        ${!isRunClosed ? `
+        <div style="margin: 1rem 0;">
+            <label class="form-label" style="font-weight: 500; margin-bottom: 0.5rem; display: block;">💬 코멘트</label>
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <textarea id="commentInput" class="form-control" placeholder="테스트 결과에 대한 설명을 입력하세요..." style="flex: 1; min-height: 60px; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; resize: vertical;"></textarea>
+                <button type="button" class="btn btn-primary" onclick="addComment()" style="padding: 0.5rem 1rem; white-space: nowrap; align-self: flex-start;">추가</button>
+            </div>
+        </div>
+        ` : ''}
+        <div id="commentsList" style="margin: 1rem 0;">
+            <!-- 코멘트 목록이 여기에 표시됩니다 -->
+        </div>
+        
+        <!-- 첨부파일 (케이스 미디어 + 런 첨부 통합) -->
+        <div style="margin: 1rem 0;">
+            <label class="form-label" style="font-weight: 500; margin-bottom: 0.5rem; display: block;">📎 첨부파일 (이미지/동영상)</label>
+
+            <div style="margin-bottom: 0.75rem;">
+                <div style="font-weight: 500; color:#666; font-size:0.9rem; margin-bottom:0.35rem;">케이스 미디어</div>
+                <div style="display:flex; flex-direction:column; gap:0.35rem;">
+                    ${(caseData.media && caseData.media.length > 0)
+                        ? caseData.media.map(m => `<a href="${escapeHtml(m.url)}" target="_blank" rel="noopener noreferrer" style="color:#3498db; text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">📎 ${escapeHtml(m.original_name)}</a>`).join('')
+                        : `<div style="color:#999; font-size:0.9rem;">등록된 미디어가 없습니다.</div>`}
+                    ${(isRunClosed && caseData.media_names_snapshot) ? `<div style="color:#666; font-size:0.85rem;">(스냅샷) ${escapeHtml(caseData.media_names_snapshot)}</div>` : ''}
+                </div>
+            </div>
+
+            <div style="font-weight: 500; color:#666; font-size:0.9rem; margin-bottom:0.35rem;">런 첨부</div>
+            ${!isRunClosed ? `
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <input type="file" id="attachments" class="form-control" multiple accept="image/*,video/*"
+                       style="flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                <button type="button" class="btn btn-secondary" onclick="pasteFromClipboard()" style="padding: 0.5rem 1rem; white-space: nowrap;">
+                    📋 클립보드
+                </button>
+            </div>
+            <small style="color: #666; display: block; margin-top: 0.25rem;">이미지 또는 동영상 파일을 선택하거나 클립보드에서 붙여넣기 (Ctrl+V)</small>
+            ` : ''}
+            <div id="attachmentList" style="margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.35rem;"></div>
+        </div>
+        
+        ${!isRunClosed ? `
+        <hr style="margin: 1.5rem 0;">
+        
         <h4>결과 기록</h4>
         
-        <div class="status-buttons">
-            <button class="status-btn pass" onclick="recordResult('pass')">
-                <kbd>1</kbd> Pass
+        <!-- 간소화된 결과 버튼 -->
+        <div style="display: flex; gap: 0.5rem; margin: 1rem 0; flex-wrap: wrap;">
+            <button class="status-btn pass" onclick="recordResult('pass')" style="flex: 1; min-width: 100px; padding: 0.6rem;">
+                ✓ Pass <kbd style="margin-left: 0.25rem;">1</kbd>
             </button>
-            <button class="status-btn fail" onclick="recordResult('fail')">
-                <kbd>2</kbd> Fail
+            <button class="status-btn fail" onclick="recordResultWithModal('fail')" style="flex: 1; min-width: 100px; padding: 0.6rem;">
+                ✗ Fail <kbd style="margin-left: 0.25rem;">2</kbd>
             </button>
-            <button class="status-btn blocked" onclick="recordResult('blocked')">
-                <kbd>3</kbd> Blocked
+            <button class="status-btn blocked" onclick="recordResultWithModal('blocked')" style="flex: 1; min-width: 100px; padding: 0.6rem;">
+                ⊘ Blocked <kbd style="margin-left: 0.25rem;">3</kbd>
             </button>
-            <button class="status-btn retest" onclick="recordResult('retest')">
-                <kbd>4</kbd> Retest
+            <button class="status-btn retest" onclick="recordResultWithModal('retest')" style="flex: 1; min-width: 100px; padding: 0.6rem;">
+                ↻ Retest <kbd style="margin-left: 0.25rem;">4</kbd>
             </button>
-            <button class="status-btn na" onclick="recordResult('na')">
-                <kbd>5</kbd> N/A
+            <button class="status-btn na" onclick="recordResultWithModal('na')" style="flex: 1; min-width: 100px; padding: 0.6rem;">
+                − N/A <kbd style="margin-left: 0.25rem;">5</kbd>
             </button>
         </div>
-        
-        <div class="comment-section" id="commentSection">
-            <label class="form-label">코멘트 ${result && result.status === 'fail' ? '(필수)' : '(선택)'}</label>
-            <textarea id="commentInput" class="form-control" placeholder="결과에 대한 설명을 입력하세요..."></textarea>
-            <button class="btn btn-success" style="margin-top: 0.5rem;" onclick="saveComment()">저장</button>
-        </div>
+        ` : ''}
         
         ${result ? `
             <hr style="margin: 2rem 0;">
-            <h4>현재 상태</h4>
-            <div style="padding: 1rem; background: #e8f5e9; border-radius: 4px; margin: 1rem 0;">
-                <strong>상태:</strong> ${result.status.toUpperCase()}<br>
-                <strong>실행자:</strong> ${result.executor}<br>
-                <strong>시간:</strong> ${new Date(result.created_at).toLocaleString('ko-KR')}<br>
-                ${result.comment ? `<strong>코멘트:</strong> ${result.comment}` : ''}
+            <h4>테스트 결과 히스토리</h4>
+            <div id="resultHistory" style="margin: 1rem 0;">
+                <div style="text-align: center; padding: 1rem; color: #999;">
+                    히스토리를 불러오는 중...
+                </div>
             </div>
         ` : ''}
     `;
     
     document.getElementById('caseContent').innerHTML = html;
+    
+    // 첨부파일 업로드 이벤트 리스너 추가 (미리보기 없이 즉시 업로드)
+    if (!isRunClosed) {
+        const attachmentInput = document.getElementById('attachments');
+        if (attachmentInput) {
+            attachmentInput.addEventListener('change', async (e) => {
+                const files = e.target.files ? Array.from(e.target.files) : [];
+                await uploadSelectedAttachments(files);
+            });
+        }
+    }
+    
+    // Phase 1 개선: 버그 링크 목록 로드 (완료된 런에서도)
+    loadBugLinks();
+    loadComments();
+    loadAttachments();
+    
+    // 결과가 있으면 히스토리 로드
+    if (result) {
+        loadResultHistory(caseData.id);
+    }
+}
+
+// 버그 링크 관리 (Phase 1)
+let bugLinksArray = [];
+
+function loadBugLinks() {
+    const item = runCases[currentIndex];
+    const caseId = item.case.id;
+
+    fetch(`/api/runs/${runId}/cases/${caseId}/bug-links`)
+        .then(res => res.json())
+        .then(data => {
+            const bl = (data.bug_links || '').trim();
+            bugLinksArray = bl ? bl.split(',').map(link => link.trim()).filter(link => link) : [];
+            renderBugLinks();
+        })
+        .catch(err => {
+            console.error('버그 링크 로드 오류:', err);
+            bugLinksArray = [];
+            renderBugLinks();
+        });
+}
+
+function renderBugLinks() {
+    const container = document.getElementById('bugLinksList');
+    if (!container) return;
+    
+    if (bugLinksArray.length === 0) {
+        container.innerHTML = '<div style="color: #999; font-size: 0.9rem; padding: 0.5rem;">등록된 버그 링크가 없습니다.</div>';
+        return;
+    }
+    
+    container.innerHTML = bugLinksArray.map((link, index) => {
+        const isUrl = link.startsWith('http://') || link.startsWith('https://');
+        const displayLink = isUrl ? link : 'https://jira.example.com/browse/' + link;
+        
+        const deleteButton = !isRunClosed ? 
+            '<button type="button" onclick="removeBugLink(' + index + ')" ' +
+            'style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 0.25rem 0.5rem; cursor: pointer; font-size: 0.85rem; white-space: nowrap;">' +
+            '삭제</button>' : '';
+        
+        return '<div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; background: #f9f9f9; border-radius: 4px; margin-bottom: 0.5rem;">' +
+            '<a href="' + (isUrl ? link : displayLink) + '" target="_blank" rel="noopener noreferrer" ' +
+            'style="flex: 1; color: #3498db; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' +
+            '🔗 ' + escapeHtml(link) + '</a>' +
+            deleteButton +
+            '</div>';
+    }).join('');
+}
+
+function addBugLink() {
+    const input = document.getElementById('bugLinkInput');
+    const link = input.value.trim();
+    
+    if (!link) {
+        alert('버그 링크를 입력하세요.');
+        return;
+    }
+    
+    bugLinksArray.push(link);
+    input.value = '';
+    renderBugLinks();
+    
+    showSaveNotification('✅ 버그 링크가 추가되었습니다. 결과 저장 시 함께 저장됩니다.');
+}
+
+function removeBugLink(index) {
+    if (confirm('이 버그 링크를 삭제하시겠습니까?')) {
+        bugLinksArray.splice(index, 1);
+        renderBugLinks();
+        showSaveNotification('✅ 버그 링크가 삭제되었습니다. 결과 저장 시 반영됩니다.');
+    }
+}
+
+// 코멘트 관리 (Phase 1 개선)
+let commentsArray = [];  // {id, comment, executor, created_at} 형태
+
+function loadComments() {
+    const item = runCases[currentIndex];
+    const caseId = item.case.id;
+    
+    // API에서 모든 코멘트 로드
+    fetch(`/api/runs/${runId}/cases/${caseId}/comments`)
+        .then(res => res.json())
+        .then(data => {
+            commentsArray = data;  // 전체 객체 저장
+            renderComments();
+            
+            // 사이드바 업데이트 (최신 코멘트 1개만 표시)
+            const latestComment = data.length > 0 ? data[0].comment : null;
+            updateSidebarItem(currentIndex, item.result ? item.result.status : null, latestComment);
+        })
+        .catch(err => {
+            console.error('코멘트 로드 오류:', err);
+            commentsArray = [];
+            renderComments();
+        });
+}
+
+function renderComments() {
+    const container = document.getElementById('commentsList');
+    if (!container) return;
+    
+    if (commentsArray.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    container.innerHTML = commentsArray.map((commentObj, index) => {
+        const deleteButton = !isRunClosed ? 
+            '<button type="button" onclick="removeComment(' + commentObj.id + ')" ' +
+            'style="background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 0.25rem 0.5rem; cursor: pointer; font-size: 0.85rem; white-space: nowrap;">' +
+            '삭제</button>' : '';
+        
+        return '<div style="display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.75rem; background: #f9f9f9; border-left: 3px solid #3498db; border-radius: 4px; margin-bottom: 0.5rem;">' +
+            '<div style="flex: 1; color: #333; white-space: pre-wrap; word-break: break-word;">' + escapeHtml(commentObj.comment) + '</div>' +
+            deleteButton +
+            '</div>';
+    }).join('');
+}
+
+function addComment() {
+    const input = document.getElementById('commentInput');
+    const comment = input.value.trim();
+    
+    if (!comment) {
+        alert('코멘트를 입력하세요.');
+        return;
+    }
+    
+    const item = runCases[currentIndex];
+    const caseId = item.case.id;
+    
+    // 코멘트 즉시 저장
+    fetch(`/api/runs/${runId}/comments`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            case_id: caseId,
+            comment: comment
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        // 입력 필드 초기화
+        input.value = '';
+        
+        // 코멘트 다시 로드
+        loadComments();
+        
+        // 사이드바 업데이트 (최신 코멘트 1개만 표시)
+        updateSidebarItem(currentIndex, item.result ? item.result.status : null, comment);
+        
+        showSaveNotification('✅ 코멘트가 저장되었습니다.');
+    })
+    .catch(err => {
+        console.error('코멘트 저장 오류:', err);
+        alert('코멘트 저장 실패: ' + err);
+    });
+}
+
+function removeComment(commentId) {
+    if (confirm('이 코멘트를 삭제하시겠습니까?')) {
+        fetch(`/api/results/${commentId}`, {
+            method: 'DELETE'
+        })
+        .then(res => res.json())
+        .then(data => {
+            // 코멘트 다시 로드
+            loadComments();
+            showSaveNotification('✅ 코멘트가 삭제되었습니다.');
+        })
+        .catch(err => {
+            console.error('코멘트 삭제 오류:', err);
+            alert('코멘트 삭제 실패: ' + err);
+        });
+    }
+}
+
+
+function addBugLink() {
+    const input = document.getElementById('bugLinkInput');
+    if (!input) return;
+    
+    const link = input.value.trim();
+    if (!link) {
+        alert('버그 링크를 입력해주세요.');
+        return;
+    }
+    
+    // 중복 체크
+    if (bugLinksArray.includes(link)) {
+        alert('이미 등록된 링크입니다.');
+        return;
+    }
+    
+    bugLinksArray.push(link);
+    input.value = '';
+    renderBugLinks();
+    
+    // 서버에 저장
+    saveBugLinks();
+}
+
+function removeBugLink(index) {
+    if (confirm('이 버그 링크를 삭제하시겠습니까?')) {
+        bugLinksArray.splice(index, 1);
+        renderBugLinks();
+        
+        // 서버에 저장
+        saveBugLinks();
+    }
+}
+
+async function saveBugLinks() {
+    const item = runCases[currentIndex];
+    const caseId = item.case.id;
+    const bugLinksString = bugLinksArray.join(', ');
+    
+    try {
+        const response = await fetch(`/api/runs/${runId}/cases/${caseId}/bug-links`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ bug_links: bugLinksString })
+        });
+
+        if (!response.ok) throw new Error('저장 실패');
+
+        // 로컬 데이터도 유지(결과 저장 시 함께 포함되도록)
+        const data = await response.json();
+        if (item.result) {
+            item.result.bug_links = data.bug_links || bugLinksString;
+        }
+        showSaveNotification('✅ 버그 링크 저장 완료');
+    } catch (err) {
+        console.error('버그 링크 저장 오류:', err);
+        alert('버그 링크 저장 실패');
+    }
+}
+
+async function loadAttachments() {
+    const item = runCases[currentIndex];
+    const caseId = item.case.id;
+    const listEl = document.getElementById('attachmentList');
+    if (!listEl) return;
+
+    try {
+        const res = await fetch(`/api/runs/${runId}/cases/${caseId}/attachments`);
+        if (!res.ok) throw new Error('첨부 로드 실패');
+        const data = await res.json();
+
+        if (!Array.isArray(data) || data.length === 0) {
+            listEl.innerHTML = '<div style="color:#999; font-size:0.9rem; padding:0.25rem 0;">등록된 첨부파일이 없습니다.</div>';
+            return;
+        }
+
+        listEl.innerHTML = data.map(a => {
+            const url = `/api/attachments/${a.id}`;
+            const downloadUrl = `/api/attachments/${a.id}?download=1`;
+            const safeName = escapeHtml(a.original_name || '');
+            return `
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <a href="${url}" data-name="${safeName}" onclick="return previewAttachment(event, ${a.id})"
+                       style="flex:1; display:inline-flex; align-items:center; gap:0.35rem; padding:0.45rem 0.6rem; border:1px solid #eee; border-radius:6px; background:#fafafa; text-decoration:none; color:#3498db; min-width:0;">
+                        <span>📎</span>
+                        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(a.original_name || ('attachment#' + a.id))}</span>
+                    </a>
+                    <a href="${downloadUrl}" title="다운로드"
+                       style="display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border:1px solid #eee; border-radius:6px; background:#fff; text-decoration:none;">
+                        ⬇️
+                    </a>
+                    ${!isRunClosed ? `
+                    <button type="button" title="삭제" onclick="deleteAttachment(${a.id})"
+                            style="display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border:1px solid #eee; border-radius:6px; background:#fff; cursor:pointer;">
+                        🗑️
+                    </button>
+                    ` : ''}
+                </div>
+            `;
+        }).join('');
+    } catch (err) {
+        console.error('첨부 로드 오류:', err);
+    }
+}
+
+async function deleteAttachment(attachmentId) {
+    if (!confirm('이 첨부파일을 삭제하시겠습니까?')) return;
+    try {
+        const res = await fetch(`/api/attachments/${attachmentId}`, { method: 'DELETE' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            alert(data.error || '삭제 실패');
+            return;
+        }
+        showSaveNotification('✅ 첨부파일 삭제 완료');
+        await loadAttachments();
+    } catch (err) {
+        console.error('첨부 삭제 오류:', err);
+        alert('삭제 실패: ' + err);
+    }
+}
+
+function previewAttachment(event, attachmentId) {
+    if (event) event.preventDefault();
+    const name = (event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.name ? event.currentTarget.dataset.name : '').toLowerCase();
+    const url = `/api/attachments/${attachmentId}`;
+
+    const isImage = name.match(/\.(png|jpg|jpeg|gif|webp)$/);
+    const isVideo = name.match(/\.(mp4|mov|webm|avi|mkv)$/);
+
+    if (isImage) {
+        showImageModal(url);
+        return false;
+    }
+
+    if (isVideo) {
+        showVideoModal(url);
+        return false;
+    }
+
+    // 기타 파일은 새 탭(브라우저가 지원하면 바로 보기, 아니면 다운로드/표시)
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return false;
+}
+
+function showVideoModal(videoSrc) {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 1rem;';
+
+    const video = document.createElement('video');
+    video.src = videoSrc;
+    video.controls = true;
+    video.autoplay = true;
+    video.style.cssText = 'max-width: 92%; max-height: 92%; background: black; border-radius: 8px;';
+
+    modal.appendChild(video);
+    modal.onclick = function(e) {
+        // 비디오 클릭은 막고, 바깥 클릭만 닫기
+        if (e.target === modal) {
+            modal.remove();
+        }
+    };
+
+    document.body.appendChild(modal);
+}
+
+// 이미지 확대 모달
+function showImageModal(imageSrc) {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 10000; display: flex; align-items: center; justify-content: center; cursor: pointer;';
+    
+    const img = document.createElement('img');
+    img.src = imageSrc;
+    img.style.cssText = 'max-width: 90%; max-height: 90%; object-fit: contain;';
+    
+    modal.appendChild(img);
+    modal.onclick = function() {
+        modal.remove();
+    };
+    
+    document.body.appendChild(modal);
+}
+
+// 클립보드에서 이미지 붙여넣기
+async function pasteFromClipboard() {
+    try {
+        const clipboardItems = await navigator.clipboard.read();
+        let hasImage = false;
+        
+        for (const item of clipboardItems) {
+            for (const type of item.types) {
+                if (type.startsWith('image/')) {
+                    const blob = await item.getType(type);
+                    const file = new File([blob], `clipboard-${Date.now()}.png`, { type: blob.type });
+                    
+                    await uploadSelectedAttachments([file]);
+                    hasImage = true;
+                    
+                    showSaveNotification('✅ 클립보드 이미지 추가됨');
+                    break;
+                }
+            }
+            if (hasImage) break;
+        }
+        
+        if (!hasImage) {
+            alert('클립보드에 이미지가 없습니다.');
+        }
+    } catch (err) {
+        console.error('클립보드 읽기 오류:', err);
+        alert('클립보드 접근 권한이 필요합니다.');
+    }
+}
+
+// 전역 Ctrl+V 이벤트 리스너
+document.addEventListener('paste', function(e) {
+    // 입력 필드에서는 무시
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+        return;
+    }
+    
+    // 런이 닫혔으면 무시
+    if (isRunClosed) return;
+    
+    // 클립보드에 이미지가 있으면 자동 추가
+    if (e.clipboardData && e.clipboardData.items) {
+        for (let item of e.clipboardData.items) {
+            if (item.type.startsWith('image/')) {
+                e.preventDefault();
+                const blob = item.getAsFile();
+                if (blob) {
+                    const file = new File([blob], `paste-${Date.now()}.png`, { type: blob.type });
+                    uploadSelectedAttachments([file]).then(() => {
+                        showSaveNotification('✅ 이미지 붙여넣기 완료');
+                    }).catch(err => {
+                        console.error('이미지 붙여넣기 업로드 오류:', err);
+                        alert('이미지 업로드 실패: ' + err);
+                    });
+                }
+                break;
+            }
+        }
+    }
+});
+
+async function uploadSelectedAttachments(files) {
+    if (!files || files.length === 0) return;
+    if (isRunClosed) return;
+
+    const item = runCases[currentIndex];
+    const caseId = item.case.id;
+
+    for (const file of files) {
+        const form = new FormData();
+        form.append('file', file);
+        const res = await fetch(`/api/runs/${runId}/cases/${caseId}/attachments`, {
+            method: 'POST',
+            body: form
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || '업로드 실패');
+        }
+    }
+
+    // 업로드 완료 후 입력 초기화 + 저장된 첨부 목록 갱신
+    const input = document.getElementById('attachments');
+    if (input) input.value = '';
+    showSaveNotification('✅ 첨부파일 업로드 완료');
+    await loadAttachments();
+}
+
+// 결과 히스토리 로드
+async function loadResultHistory(caseId) {
+    try {
+        const response = await fetch(`/api/runs/${runId}/cases/${caseId}/history`);
+        if (!response.ok) throw new Error('히스토리 로드 실패');
+        
+        const history = await response.json();
+        
+        const historyContainer = document.getElementById('resultHistory');
+        if (!historyContainer) return;
+        
+        if (history.length === 0) {
+            historyContainer.innerHTML = `
+                <div style="text-align: center; padding: 1rem; color: #999;">
+                    아직 기록된 결과가 없습니다.
+                </div>
+            `;
+            return;
+        }
+        
+        // 히스토리 HTML 생성
+        const historyHtml = history.map((item, index) => {
+            const bgColor = index === 0 ? '#e8f5e9' : '#f9f9f9'; // 최신 결과는 강조
+            const statusColors = {
+                'pass': '#27ae60',
+                'fail': '#e74c3c',
+                'blocked': '#95a5a6',
+                'retest': '#f39c12',
+                'na': '#bdc3c7'
+            };
+            const statusColor = statusColors[item.status] || '#999';
+            
+            return `
+                <div style="padding: 1rem; background: ${bgColor}; border-radius: 4px; margin-bottom: 0.5rem; border-left: 4px solid ${statusColor};">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                        <div>
+                            <span style="display: inline-block; padding: 0.2rem 0.6rem; background: ${statusColor}; color: white; border-radius: 3px; font-weight: 600; font-size: 0.85rem;">
+                                ${item.status.toUpperCase()}
+                            </span>
+                            ${index === 0 ? '<span style="margin-left: 0.5rem; color: #27ae60; font-weight: 600;">최신</span>' : ''}
+                        </div>
+                        <div style="text-align: right; font-size: 0.85rem; color: #666;">
+                            ${new Date(item.created_at).toLocaleString('ko-KR')} <span style="color: #3498db; font-weight: 500;">(${item.executor})</span>
+                        </div>
+                    </div>
+                    ${item.comment ? `
+                    <div style="font-size: 0.9rem; color: #555; margin-top: 0.5rem;">
+                        <strong>코멘트:</strong> ${escapeHtml(item.comment)}
+                    </div>
+                    ` : ''}
+                    ${item.bug_links ? `
+                    <div style="font-size: 0.9rem; color: #555; margin-top: 0.5rem;">
+                        <strong>🐛 버그 링크:</strong> ${escapeHtml(item.bug_links)}
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+        }).join('');
+        
+        historyContainer.innerHTML = historyHtml;
+        
+    } catch (err) {
+        console.error('히스토리 로드 오류:', err);
+        const historyContainer = document.getElementById('resultHistory');
+        if (historyContainer) {
+            historyContainer.innerHTML = `
+                <div style="text-align: center; padding: 1rem; color: #e74c3c;">
+                    히스토리를 불러오는 중 오류가 발생했습니다.
+                </div>
+            `;
+        }
+    }
 }
 
 let pendingStatus = null;
 
+// Pass는 즉시 저장
 function recordResult(status) {
-    const caseData = runCases[currentIndex].case;
-    
-    // Fail인 경우 코멘트 입력 영역 표시
-    if (status === 'fail') {
-        const commentSection = document.getElementById('commentSection');
-        commentSection.classList.add('show');
-        document.getElementById('commentInput').focus();
-        pendingStatus = status;
+    if (isRunClosed) {
+        alert('완료된 런은 결과를 기록할 수 없습니다.');
         return;
     }
     
+    const caseData = runCases[currentIndex].case;
+    const comment = document.getElementById('commentInput').value.trim();
+    
     // 즉시 저장
-    saveResult(caseData.id, status, '');
+    saveResult(caseData.id, status, comment);
+}
+
+// Pass 외의 결과는 모달로 코멘트 입력
+function recordResultWithModal(status) {
+    if (isRunClosed) {
+        alert('완료된 런은 결과를 기록할 수 없습니다.');
+        return;
+    }
+    
+    pendingStatus = status;
+    
+    // 기존 코멘트 입력 값을 모달에 복사
+    const comment = document.getElementById('commentInput').value.trim();
+    document.getElementById('modalCommentInput').value = comment;
+    
+    // 모달 표시
+    const modal = document.getElementById('commentModal');
+    modal.style.display = 'flex';
+    document.getElementById('modalCommentInput').focus();
+}
+
+function closeCommentModal() {
+    const modal = document.getElementById('commentModal');
+    modal.style.display = 'none';
+    pendingStatus = null;
+}
+
+function confirmCommentModal() {
+    if (!pendingStatus) return;
+    
+    const caseData = runCases[currentIndex].case;
+    const comment = document.getElementById('modalCommentInput').value.trim();
+    
+    // 코멘트가 있으면 별도로 저장
+    if (comment) {
+        fetch(`/api/runs/${runId}/comments`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                case_id: caseData.id,
+                comment: comment
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            // 코멘트 다시 로드
+            loadComments();
+        })
+        .catch(err => {
+            console.error('코멘트 저장 오류:', err);
+        });
+    }
+    
+    // 결과 저장 (코멘트 없이)
+    saveResult(caseData.id, pendingStatus, '');
+    
+    // 모달 닫기
+    closeCommentModal();
 }
 
 function saveComment() {
@@ -506,13 +2596,20 @@ function saveComment() {
 }
 
 function saveResult(caseId, status, comment) {
+    // Phase 1 개선: bug_links 배열에서 수집
+    const bugLinks = bugLinksArray.join(', ');
+    
+    // 코멘트는 별도로 저장되므로 결과 저장 시에는 포함하지 않음
+    // (comment 파라미터는 하위 호환성을 위해 유지하지만 사용하지 않음)
+    
     fetch(`/api/runs/${runId}/results`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
             case_id: caseId,
             status: status,
-            comment: comment
+            comment: '',  // 코멘트는 별도 저장
+            bug_links: bugLinks
         })
     })
     .then(res => res.json())
@@ -521,20 +2618,29 @@ function saveResult(caseId, status, comment) {
         runCases[currentIndex].result = {
             id: data.id,
             status: status,
-            comment: comment,
+            comment: '',  // 코멘트는 별도 저장
+            bug_links: bugLinks,
             executor: '{{ current_user.name }}',
             created_at: data.created_at
         };
         
-        // 사이드바 스타일 업데이트
-        const sidebarItem = document.querySelectorAll('.run-case-item')[currentIndex];
-        sidebarItem.classList.remove('status-pass', 'status-fail', 'status-blocked', 'status-retest', 'status-na');
-        sidebarItem.classList.add(`status-${status}`);
-        sidebarItem.querySelector('span[style*="color"]').style.color = getStatusColor(status);
-        sidebarItem.querySelector('span[style*="color"]').textContent = status.toUpperCase();
+        // 최신 코멘트 가져오기
+        const latestComment = commentsArray.length > 0 ? commentsArray[0].comment : null;
+        
+        // 사이드바 업데이트 (최신 코멘트 1개만 표시)
+        updateSidebarItem(currentIndex, status, latestComment);
         
         // 통계 업데이트
         updateRunStats();
+        
+        // 히스토리 다시 로드
+        if (document.getElementById('resultHistory')) {
+            loadResultHistory(caseId);
+        }
+        
+        // Phase 1 개선: 코멘트 입력 필드만 초기화 (버그 링크는 유지)
+        const commentInput = document.getElementById('commentInput');
+        if (commentInput) commentInput.value = '';
         
         // 다음 미실행 케이스로 이동
         goToNextUnexecuted();
@@ -563,7 +2669,8 @@ function updateRunStats() {
     let pass = 0, fail = 0, blocked = 0, retest = 0, na = 0, untested = 0;
     
     runCases.forEach(rc => {
-        if (rc.result) {
+        if (rc.result && rc.result.status !== 'comment') {
+            // 코멘트 전용 결과는 통계에서 제외
             switch(rc.result.status) {
                 case 'pass': pass++; break;
                 case 'fail': fail++; break;
@@ -571,7 +2678,7 @@ function updateRunStats() {
                 case 'retest': retest++; break;
                 case 'na': na++; break;
             }
-        } else {
+        } else if (!rc.result || rc.result.status === 'comment') {
             untested++;
         }
     });
@@ -579,14 +2686,32 @@ function updateRunStats() {
     const total = runCases.length;
     const executed = pass + fail + blocked + retest + na;
     const progress = total > 0 ? Math.round((executed / total) * 100) : 0;
+    const passRate = executed > 0 ? Math.round((pass / executed) * 100) : 0;
     
     // 통계 표시 업데이트
     document.getElementById('statProgress').textContent = `${progress}%`;
+    document.getElementById('statPassRate').textContent = `${passRate}%`;
+    
+    // Pass Rate 색상 업데이트
+    const passRateElement = document.getElementById('statPassRate');
+    if (passRate >= 90) {
+        passRateElement.style.color = '#27ae60';
+    } else if (passRate >= 70) {
+        passRateElement.style.color = '#f39c12';
+    } else {
+        passRateElement.style.color = '#e74c3c';
+    }
+    
     document.getElementById('statExecuted').textContent = `${executed} / ${total}`;
     document.getElementById('statPass').textContent = pass;
     document.getElementById('statFail').textContent = fail;
     document.getElementById('statBlocked').textContent = blocked;
     document.getElementById('statRetest').textContent = retest;
+    document.getElementById('statNA').textContent = na;
+    document.getElementById('statPending').textContent = untested;
+    
+    // 프로그레스바 업데이트
+    updateProgressBar();
 }
 
 // 자동 새로고침 시작
@@ -626,6 +2751,41 @@ async function refreshRunData() {
         newData.forEach((newCase, index) => {
             const oldCase = runCases[index];
             
+            // 케이스 데이터 업데이트 (완료된 런에서는 스냅샷 유지, 진행 중인 런만 업데이트)
+            // 완료된 런에서는 케이스 데이터를 업데이트하지 않음 (스냅샷 유지)
+            if (!isRunClosed) {
+                let caseDataChanged = false;
+                
+                if (newCase.case_title !== undefined && runCases[index].case.title !== newCase.case_title) {
+                    runCases[index].case.title = newCase.case_title;
+                    caseDataChanged = true;
+                }
+                if (newCase.case_steps !== undefined && runCases[index].case.steps !== (newCase.case_steps || '')) {
+                    runCases[index].case.steps = newCase.case_steps || '';
+                    caseDataChanged = true;
+                }
+                if (newCase.case_expected !== undefined && runCases[index].case.expected !== (newCase.case_expected || '')) {
+                    runCases[index].case.expected = newCase.case_expected || '';
+                    caseDataChanged = true;
+                }
+                if (newCase.case_priority !== undefined && runCases[index].case.priority !== newCase.case_priority) {
+                    runCases[index].case.priority = newCase.case_priority;
+                    caseDataChanged = true;
+                }
+                if (newCase.case_version !== undefined && runCases[index].case.version !== newCase.case_version) {
+                    runCases[index].case.version = newCase.case_version;
+                    caseDataChanged = true;
+                }
+                
+                if (caseDataChanged) {
+                    hasChanges = true;
+                    // 현재 보고 있는 케이스면 즉시 다시 로드
+                    if (index === currentIndex) {
+                        loadCase(currentIndex);
+                    }
+                }
+            }
+            
             // 결과 변경 확인
             const oldResult = oldCase.result;
             const newResult = newCase.result;
@@ -634,16 +2794,22 @@ async function refreshRunData() {
                 // 새로운 결과 추가됨
                 hasChanges = true;
                 runCases[index].result = newResult;
-                updateSidebarItem(index, newResult.status);
+                updateSidebarItem(index, newResult.status, newResult.comment);
+            } else if (oldResult && !newResult) {
+                // 결과가 삭제됨 (초기화 등)
+                hasChanges = true;
+                runCases[index].result = null;
+                updateSidebarItem(index, null);
             } else if (oldResult && newResult && oldResult.status !== newResult.status) {
                 // 결과 상태 변경됨
                 hasChanges = true;
                 runCases[index].result = newResult;
-                updateSidebarItem(index, newResult.status);
+                updateSidebarItem(index, newResult.status, newResult.comment);
             } else if (oldResult && newResult && oldResult.comment !== newResult.comment) {
                 // 코멘트 변경됨
                 hasChanges = true;
                 runCases[index].result = newResult;
+                updateSidebarItem(index, newResult.status, newResult.comment);
             }
         });
         
@@ -666,7 +2832,7 @@ async function refreshRunData() {
 }
 
 // 사이드바 아이템 업데이트
-function updateSidebarItem(index, status) {
+function updateSidebarItem(index, status, comment = null) {
     const sidebarItem = document.querySelectorAll('.run-case-item')[index];
     if (!sidebarItem) return;
     
@@ -677,12 +2843,45 @@ function updateSidebarItem(index, status) {
     if (status) {
         sidebarItem.classList.add(`status-${status}`);
         
-        // 상태 텍스트 업데이트
-        const statusSpan = sidebarItem.querySelector('span[style*="color"]');
-        if (statusSpan) {
-            statusSpan.style.color = getStatusColor(status);
-            statusSpan.textContent = status.toUpperCase();
+        // 결과 배지 업데이트 (새로운 방식)
+        const badge = sidebarItem.querySelector('.result-badge');
+        if (badge) {
+            badge.className = `result-badge result-${status}`;
+            badge.style.padding = '0.15rem 0.5rem';
+            badge.style.borderRadius = '4px';
+            badge.style.fontWeight = '600';
+            badge.style.fontSize = '0.75rem';
+            badge.textContent = status.toUpperCase();
         }
+        
+    } else {
+        // 결과가 없는 경우 (초기화 등)
+        const badge = sidebarItem.querySelector('.result-badge');
+        if (badge) {
+            badge.className = 'result-badge result-none';
+            badge.style.padding = '0.15rem 0.5rem';
+            badge.style.borderRadius = '4px';
+            badge.style.fontWeight = '600';
+            badge.style.fontSize = '0.75rem';
+            badge.textContent = '미실행';
+        }
+    }
+
+    // 코멘트 미리보기 업데이트 (status 유무와 무관하게 표시)
+    const container = sidebarItem.querySelector('div[style*="font-size: 0.85rem"]');
+    let commentPreview = sidebarItem.querySelector('.case-comment-preview');
+    if (comment && String(comment).trim()) {
+        if (!commentPreview && container) {
+            commentPreview = document.createElement('div');
+            commentPreview.className = 'case-comment-preview';
+            commentPreview.style.cssText = 'font-size: 0.7rem; color: #666; margin-top: 0.25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 600px; max-width: 600px;';
+            container.appendChild(commentPreview);
+        }
+        if (commentPreview) {
+            commentPreview.textContent = '💬 ' + comment;
+        }
+    } else if (commentPreview) {
+        commentPreview.remove();
     }
 }
 
@@ -753,7 +2952,8 @@ function initResizer() {
         
         // 최소/최대 너비 제한
         if (newWidth >= 300 && newWidth <= 800) {
-            sidebar.style.width = newWidth + 'px';
+            // flex-basis를 변경하여 너비 조정
+            sidebar.style.flex = `0 0 ${newWidth}px`;
         }
     });
     
@@ -776,14 +2976,22 @@ function saveSidebarWidth(width) {
 
 function loadSidebarWidth() {
     const savedWidth = localStorage.getItem('runExecuteSidebarWidth');
+    const sidebar = document.getElementById('runCasesSidebar');
+    const isCollapsed = localStorage.getItem('detailPanelCollapsed') === 'true';
+    
+    // 패널이 접혀있으면 인라인 스타일을 적용하지 않음 (CSS가 처리)
+    if (isCollapsed) {
+        console.log('패널이 접혀있어 사이드바 너비 설정 생략');
+        return;
+    }
+    
     if (savedWidth) {
-        const sidebar = document.getElementById('runCasesSidebar');
-        sidebar.style.width = savedWidth + 'px';
+        // flex-basis를 사용하여 너비 설정
+        sidebar.style.flex = `0 0 ${savedWidth}px`;
         console.log('사이드바 너비 로드:', savedWidth);
     } else {
-        // 기본값 설정
-        const sidebar = document.getElementById('runCasesSidebar');
-        sidebar.style.width = '450px';  // 기본값을 더 넓게 설정
+        // 기본값 설정 (CSS의 flex: 1 사용)
+        console.log('사이드바 기본 너비 사용');
     }
 }
 
@@ -801,7 +3009,7 @@ function goToNextUnexecuted() {
             return;
         }
     }
-    alert('모든 케이스가 실행되었습니다!');
+    showToast('모든 케이스가 실행되었습니다!', 'success', 5000);
 }
 
 function goToPrevUnexecuted() {
@@ -848,6 +3056,12 @@ function closeComment() {
 
 // 케이스 필드 업데이트
 async function updateCaseField(field, value) {
+    if (isRunClosed) {
+        alert('완료된 런에서는 케이스를 수정할 수 없습니다.');
+        loadCase(currentIndex); // 원래 값으로 복원
+        return;
+    }
+    
     const caseData = runCases[currentIndex].case;
     const caseId = caseData.id;
     
@@ -979,24 +3193,34 @@ document.addEventListener('keydown', function(e) {
     
     switch(e.key) {
         case '1':
-            e.preventDefault();
-            recordResult('pass');
+            if (!isRunClosed) {
+                e.preventDefault();
+                recordResult('pass');
+            }
             break;
         case '2':
-            e.preventDefault();
-            recordResult('fail');
+            if (!isRunClosed) {
+                e.preventDefault();
+                recordResultWithModal('fail');
+            }
             break;
         case '3':
-            e.preventDefault();
-            recordResult('blocked');
+            if (!isRunClosed) {
+                e.preventDefault();
+                recordResultWithModal('blocked');
+            }
             break;
         case '4':
-            e.preventDefault();
-            recordResult('retest');
+            if (!isRunClosed) {
+                e.preventDefault();
+                recordResultWithModal('retest');
+            }
             break;
         case '5':
-            e.preventDefault();
-            recordResult('na');
+            if (!isRunClosed) {
+                e.preventDefault();
+                recordResult('na');
+            }
             break;
         case 'n':
             e.preventDefault();
@@ -1022,13 +3246,11 @@ document.addEventListener('keydown', function(e) {
             e.preventDefault();
             goToFirst();
             break;
-        case 'c':
-            e.preventDefault();
-            focusComment();
-            break;
         case 'r':
-            e.preventDefault();
-            manualRefresh();
+            if (!isRunClosed) {
+                e.preventDefault();
+                manualRefresh();
+            }
             break;
         case '?':
             e.preventDefault();
@@ -1038,13 +3260,559 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
-// 힌트 초기 표시 (3초 후 자동 숨김)
-setTimeout(() => {
-    const hint = document.getElementById('hotkeyHint');
-    if (hint) {
-        hint.classList.add('hidden');
+// Phase 1: CSV Export 함수
+function exportCSV() {
+    window.location.href = `/api/runs/${runId}/export.csv`;
+}
+
+// 프로그레스바 업데이트
+function updateProgressBar() {
+    let pass = 0, fail = 0, blocked = 0, retest = 0, na = 0;
+    
+    runCases.forEach(rc => {
+        if (rc.result) {
+            switch(rc.result.status) {
+                case 'pass': pass++; break;
+                case 'fail': fail++; break;
+                case 'blocked': blocked++; break;
+                case 'retest': retest++; break;
+                case 'na': na++; break;
+            }
+        }
+    });
+    
+    const total = runCases.length;
+    const passWidth = total > 0 ? (pass / total * 100) : 0;
+    const failWidth = total > 0 ? (fail / total * 100) : 0;
+    const blockedWidth = total > 0 ? (blocked / total * 100) : 0;
+    const retestWidth = total > 0 ? (retest / total * 100) : 0;
+    const naWidth = total > 0 ? (na / total * 100) : 0;
+    
+    document.getElementById('progressPass').style.width = `${passWidth}%`;
+    document.getElementById('progressFail').style.width = `${failWidth}%`;
+    document.getElementById('progressFail').style.left = `${passWidth}%`;
+    document.getElementById('progressBlocked').style.width = `${blockedWidth}%`;
+    document.getElementById('progressBlocked').style.left = `${passWidth + failWidth}%`;
+    document.getElementById('progressRetest').style.width = `${retestWidth}%`;
+    document.getElementById('progressRetest').style.left = `${passWidth + failWidth + blockedWidth}%`;
+    document.getElementById('progressNA').style.width = `${naWidth}%`;
+    document.getElementById('progressNA').style.left = `${passWidth + failWidth + blockedWidth + retestWidth}%`;
+}
+
+// 필터링 함수
+function filterByStatus(status) {
+    currentFilter = status;
+    
+    // 모든 stat-item의 active 클래스 제거
+    document.querySelectorAll('.stat-item.clickable').forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    // 클릭된 항목에 active 클래스 추가
+    event.target.closest('.stat-item').classList.add('active');
+    
+    // 케이스 목록 필터링
+    const items = document.querySelectorAll('.run-case-item');
+    let visibleCount = 0;
+    
+    items.forEach((item, index) => {
+        const result = runCases[index].result;
+        let shouldShow = false;
+        
+        if (status === 'none') {
+            // 미실행 케이스
+            shouldShow = !result;
+        } else {
+            // 특정 상태의 케이스
+            shouldShow = result && result.status === status;
+        }
+        
+        if (shouldShow) {
+            item.style.display = '';
+            visibleCount++;
+        } else {
+            item.style.display = 'none';
+        }
+    });
+    
+    // 필터 상태 표시
+    const filterStatus = document.getElementById('filterStatus');
+    const filterText = document.getElementById('filterText');
+    const statusNames = {
+        'pass': 'Pass',
+        'fail': 'Fail',
+        'blocked': 'Blocked',
+        'retest': 'Retest',
+        'na': 'N/A',
+        'none': '미실행'
+    };
+    
+    filterStatus.style.display = 'flex';
+    filterText.textContent = `${statusNames[status]} 케이스만 표시 중 (${visibleCount}개)`;
+}
+
+// 필터 초기화
+function clearFilter() {
+    currentFilter = null;
+    
+    // 모든 stat-item의 active 클래스 제거
+    document.querySelectorAll('.stat-item.clickable').forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    // 모든 케이스 표시
+    document.querySelectorAll('.run-case-item').forEach(item => {
+        item.style.display = '';
+    });
+    
+    // 필터 상태 숨김
+    document.getElementById('filterStatus').style.display = 'none';
+}
+
+// 단축키 패널 토글
+function toggleHotkeyHint() {
+    const content = document.getElementById('hotkeyContent');
+    const button = event.target;
+    
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        button.textContent = '−';
+        localStorage.setItem('hotkeyHintCollapsed', 'false');
+    } else {
+        content.style.display = 'none';
+        button.textContent = '+';
+        localStorage.setItem('hotkeyHintCollapsed', 'true');
     }
-}, 5000);
+}
+
+// 단축키 패널 상태 로드
+function loadHotkeyHintState() {
+    const isCollapsed = localStorage.getItem('hotkeyHintCollapsed') === 'true';
+    const content = document.getElementById('hotkeyContent');
+    const button = document.querySelector('#hotkeyHint button');
+    
+    if (isCollapsed && content && button) {
+        content.style.display = 'none';
+        button.textContent = '+';
+    }
+}
+
+// 단축키 가이드는 항상 표시 (자동 숨김 제거)
+
+// ============================================================
+// AI 요약 관련 함수
+// ============================================================
+
+// 요약 프롬프트 목록 로드
+async function loadSummaryPrompts() {
+    try {
+        const res = await fetch('/api/summary-prompts');
+        if (!res.ok) throw new Error('프롬프트 로드 실패');
+        
+        const prompts = await res.json();
+        const select = document.getElementById('summaryPromptSelect');
+        if (!select) return;
+        
+        select.innerHTML = '<option value="">프롬프트 선택...</option>';
+        prompts.forEach(prompt => {
+            const option = document.createElement('option');
+            option.value = prompt.id;
+            option.textContent = `${prompt.name} (${prompt.model})`;
+            if (prompt.is_active) {
+                option.textContent += ' [활성]';
+            }
+            select.appendChild(option);
+        });
+    } catch (err) {
+        console.error('요약 프롬프트 로드 오류:', err);
+    }
+}
+
+// AI 요약 생성
+async function generateAISummary() {
+    const promptSelect = document.getElementById('summaryPromptSelect');
+    const promptId = promptSelect.value;
+    
+    if (!promptId) {
+        alert('프롬프트를 선택하세요.');
+        return;
+    }
+    
+    // 프로그레스 바 및 진행 상황 표시
+    const progressDiv = document.getElementById('aiSummaryProgress');
+    const progressBar = document.getElementById('aiSummaryProgressBar');
+    const progressText = document.getElementById('aiSummaryProgressText');
+    const contentDiv = document.getElementById('aiSummaryContent');
+    const generateBtn = document.getElementById('generateSummaryBtn');
+    
+    progressDiv.style.display = 'block';
+    contentDiv.style.display = 'none';
+    generateBtn.disabled = true;
+    generateBtn.textContent = '생성 중...';
+    
+    // 프로그레스 업데이트 함수
+    const updateProgress = (percent, text) => {
+        progressBar.style.width = percent + '%';
+        progressText.textContent = text;
+    };
+    
+    try {
+        // 1단계: 현재 페이지의 테스트 런 데이터 수집 (10%)
+        updateProgress(10, '📄 현재 페이지의 테스트 런 데이터 수집 중...');
+        
+        // 현재 페이지에 표시된 실제 데이터 수집
+        const currentPageData = {
+            run_id: runId,
+            run_name: (() => {
+                const h2 = document.querySelector('h2');
+                if (!h2) return '테스트 런';
+                let text = h2.textContent.trim();
+                // "완료됨 (읽기 전용)" 제거
+                text = text.replace(/완료됨\s*\(읽기\s*전용\)/g, '').trim();
+                return text || '테스트 런';
+            })(),
+            build_label: (() => {
+                // 빌드 라벨 찾기
+                const buildElements = Array.from(document.querySelectorAll('*')).filter(el => {
+                    return el.textContent && el.textContent.includes('🏷️ Build:');
+                });
+                if (buildElements.length > 0) {
+                    const text = buildElements[0].textContent;
+                    const match = text.match(/Build:\s*([^\n<]+)/);
+                    if (match) return match[1].trim();
+                }
+                return 'N/A';
+            })(),
+            test_results: [],
+            stats: {
+                total: runCases.length,
+                executed: 0,
+                pass: 0,
+                fail: 0,
+                blocked: 0,
+                retest: 0,
+                na: 0
+            }
+        };
+        
+        // 현재 페이지의 runCases 데이터에서 테스트 결과 수집
+        runCases.forEach((item, index) => {
+            if (item.result && item.result.status !== 'comment') {
+                // runCases의 case.title에는 이미 스냅샷 데이터가 포함되어 있음 (서버에서 처리됨)
+                const caseTitle = (item.case && item.case.title) || '제목 없음';
+                const status = item.result.status.toUpperCase();
+                
+                currentPageData.test_results.push({
+                    case_id: item.case ? item.case.id : null,
+                    case_title: caseTitle,
+                    status: status,
+                    bug_links: (item.result && item.result.bug_links) || '',
+                    comment: (item.result && item.result.comment) || ''
+                });
+                
+                // 통계 업데이트
+                currentPageData.stats.executed++;
+                if (status === 'PASS') currentPageData.stats.pass++;
+                else if (status === 'FAIL') currentPageData.stats.fail++;
+                else if (status === 'BLOCKED') currentPageData.stats.blocked++;
+                else if (status === 'RETEST') currentPageData.stats.retest++;
+                else if (status === 'N/A') currentPageData.stats.na++;
+            }
+        });
+        
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // 2단계: 테스트 환경 요약 중 (30%)
+        updateProgress(30, '🔍 테스트 결과 분석 중...');
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // 3단계: AI 요약 생성 중 (50%)
+        updateProgress(50, '🤖 AI 요약 생성 중...');
+        
+        const res = await fetch(`/api/runs/${runId}/generate-summary`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                prompt_id: parseInt(promptId),
+                current_page_data: currentPageData  // 현재 페이지의 실제 데이터 전달
+            })
+        });
+        
+        // 4단계: 응답 처리 중 (80%)
+        updateProgress(80, '📝 요약 내용 처리 중...');
+        
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.error || '요약 생성 실패');
+        }
+        
+        const data = await res.json();
+        
+        // 5단계: 완료 (100%)
+        updateProgress(100, '✅ 요약 생성 완료!');
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // 요약 표시 (복사 버튼 및 새창 버튼 포함)
+        contentDiv.innerHTML = `
+            <div style="position: relative; background: white; padding: 1rem; border-radius: 4px;">
+                <div style="position: absolute; top: 0.5rem; right: 0.5rem; display: flex; gap: 0.25rem;">
+                    <button onclick="copyAISummary()" class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.75rem; font-size: 0.85rem;" title="AI 요약 복사">
+                        📋 복사
+                    </button>
+                    <button onclick="openAISummaryInNewWindow()" class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.75rem; font-size: 0.85rem;" title="새 창에서 열기">
+                        🔗 새창
+                    </button>
+                </div>
+                <div id="aiSummaryText" style="white-space: pre-wrap; line-height: 1.6; padding-right: 6rem;">${escapeHtml(data.summary)}</div>
+            </div>
+        `;
+        contentDiv.style.display = 'block';
+        progressDiv.style.display = 'none';
+        
+        // 버튼 텍스트를 "요약 재생성"으로 변경
+        generateBtn.textContent = '요약 재생성';
+        
+        showToast('✅ AI 요약이 생성되었습니다.', 'success');
+    } catch (err) {
+        console.error('AI 요약 생성 오류:', err);
+        progressDiv.style.display = 'none';
+        contentDiv.style.display = 'block';
+        showToast('요약 생성 실패: ' + err.message, 'error');
+    } finally {
+        generateBtn.disabled = false;
+        if (generateBtn.textContent === '생성 중...') {
+            generateBtn.textContent = '요약 생성';
+        }
+    }
+}
+
+// AI 요약 복사
+function copyAISummary() {
+    const summaryText = document.getElementById('aiSummaryText');
+    if (!summaryText) {
+        // 요약이 없거나 요소를 찾을 수 없는 경우
+        const contentDiv = document.getElementById('aiSummaryContent');
+        if (contentDiv) {
+            const textDiv = contentDiv.querySelector('div[style*="white-space: pre-wrap"]');
+            if (textDiv) {
+                navigator.clipboard.writeText(textDiv.textContent).then(() => {
+                    showToast('AI 요약이 클립보드에 복사되었습니다.', 'success');
+                }).catch(err => {
+                    console.error('복사 실패:', err);
+                    showToast('복사 실패: ' + err.message, 'error');
+                });
+                return;
+            }
+        }
+        showToast('복사할 내용을 찾을 수 없습니다.', 'error');
+        return;
+    }
+    
+    navigator.clipboard.writeText(summaryText.textContent).then(() => {
+        showToast('AI 요약이 클립보드에 복사되었습니다.', 'success');
+    }).catch(err => {
+        console.error('복사 실패:', err);
+        // Fallback: 텍스트 영역을 사용한 복사
+        const textArea = document.createElement('textarea');
+        textArea.value = summaryText.textContent;
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            showToast('AI 요약이 클립보드에 복사되었습니다.', 'success');
+        } catch (fallbackErr) {
+            showToast('복사 실패: ' + fallbackErr.message, 'error');
+        }
+        document.body.removeChild(textArea);
+    });
+}
+
+// AI 요약 새창에서 열기
+function openAISummaryInNewWindow() {
+    const summaryText = document.getElementById('aiSummaryText');
+    if (!summaryText) {
+        showToast('요약 내용을 찾을 수 없습니다.', 'error');
+        return;
+    }
+    
+    const newWindow = window.open('', '_blank', 'width=800,height=600');
+    if (!newWindow) {
+        showToast('팝업이 차단되었습니다. 팝업 차단을 해제해주세요.', 'warning');
+        return;
+    }
+    
+    newWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+                    <title>AI 요약 - 테스트 런</title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                    padding: 2rem;
+                    max-width: 800px;
+                    margin: 0 auto;
+                    line-height: 1.6;
+                    background: #f5f5f5;
+                }
+                .container {
+                    background: white;
+                    padding: 2rem;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                }
+                h1 {
+                    margin-top: 0;
+                    color: #333;
+                    border-bottom: 2px solid #3498db;
+                    padding-bottom: 0.5rem;
+                }
+                .summary-content {
+                    white-space: pre-wrap;
+                    word-break: break-word;
+                    color: #333;
+                    margin-top: 1rem;
+                }
+                .copy-btn {
+                    margin-top: 1rem;
+                    padding: 0.5rem 1rem;
+                    background: #3498db;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 0.9rem;
+                }
+                .copy-btn:hover {
+                    background: #2980b9;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>🤖 AI 요약</h1>
+                <div class="summary-content">${escapeHtml(summaryText.textContent)}</div>
+                <button class="copy-btn" onclick="navigator.clipboard.writeText(\`${summaryText.textContent.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`).then(() => alert('복사되었습니다!'))">📋 복사</button>
+            </div>
+        </body>
+        </html>
+    `);
+    newWindow.document.close();
+}
+
+// ============================================================
+// Jira 원버튼 버그 등록
+// ============================================================
+
+async function loadJiraPublicConfig() {
+    try {
+        const res = await fetch('/api/jira/config/public');
+        if (!res.ok) return;
+        jiraPublicConfig = await res.json();
+    } catch (e) {
+        jiraPublicConfig = null;
+    }
+}
+
+function openJiraIssueModal() {
+    const item = runCases[currentIndex];
+    const caseData = item.case;
+    const result = item.result;
+    
+    const summary = `[QuickRail][Run ${runId}] [Case #${caseData.id}] ${caseData.title}`;
+    const defaultComponents = jiraPublicConfig?.default_components || '';
+    const defaultLabels = jiraPublicConfig?.default_labels || `quickrail,run-${runId}`;
+    const defaultPriority = jiraPublicConfig?.default_priority || '';
+    
+    const steps = caseData.steps || '';
+    
+    const descLines = [];
+    descLines.push(`Run: ${runName} (ID: ${runId})`);
+    if (runBuildLabel) descLines.push(`Build: ${runBuildLabel}`);
+    descLines.push(`Case: #${caseData.id} ${caseData.title}`);
+    descLines.push('');
+    descLines.push('[Expected]');
+    descLines.push(caseData.expected || '');
+    descLines.push('');
+    descLines.push('[Actual]');
+    if (result && result.status) {
+        descLines.push(`Status: ${result.status}`);
+    } else {
+        descLines.push('Status: (not executed)');
+    }
+    descLines.push('');
+    descLines.push('[Quick Notes]');
+    descLines.push('(필요 시 수정하세요)');
+    
+    document.getElementById('jiraSummaryInput').value = summary;
+    document.getElementById('jiraComponentInput').value = defaultComponents;
+    document.getElementById('jiraLabelsInput').value = defaultLabels;
+    document.getElementById('jiraPriorityInput').value = defaultPriority;
+    document.getElementById('jiraStepsInput').value = steps;
+    document.getElementById('jiraDescriptionInput').value = descLines.join('\n');
+    
+    const modal = document.getElementById('jiraIssueModal');
+    modal.style.display = 'flex';
+}
+
+function closeJiraIssueModal() {
+    const modal = document.getElementById('jiraIssueModal');
+    modal.style.display = 'none';
+}
+
+async function confirmJiraIssueModal() {
+    const summary = document.getElementById('jiraSummaryInput').value.trim();
+    const component = document.getElementById('jiraComponentInput').value.trim();
+    const label = document.getElementById('jiraLabelsInput').value.trim();
+    const priority = document.getElementById('jiraPriorityInput').value.trim();
+    const steps = document.getElementById('jiraStepsInput').value;
+    const description = document.getElementById('jiraDescriptionInput').value;
+    
+    if (!summary) {
+        showToast('Summary는 필수입니다.', 'warning');
+        return;
+    }
+    
+    try {
+        const res = await fetch('/api/jira/issues', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ summary, component, label, priority, steps, description })
+        });
+        
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) {
+            const msg = data.error || 'Jira 이슈 생성 실패';
+            showToast(msg, 'error', 6000);
+            return;
+        }
+        
+        closeJiraIssueModal();
+        
+        if (data.issue_url) {
+            // 버그 링크 자동 추가
+            if (!bugLinksArray.includes(data.issue_url)) {
+                bugLinksArray.push(data.issue_url);
+                renderBugLinks();
+                saveBugLinks(); // 결과가 없으면 내부에서 안내 후 return
+            }
+            showToast(`Jira 이슈 생성 완료: ${data.issue_key}`, 'success', 5000);
+            window.open(data.issue_url, '_blank', 'noopener,noreferrer');
+        } else {
+            showToast('Jira 이슈 생성 완료', 'success', 5000);
+        }
+    } catch (err) {
+        showToast('Jira 이슈 생성 실패: ' + err.message, 'error', 6000);
+    }
+}
+
+// 모달 외부 클릭 시 닫기
+document.getElementById('jiraIssueModal')?.addEventListener('click', function(e) {
+    if (e.target === this) closeJiraIssueModal();
+});
 </script>
 {% endblock %}
 
